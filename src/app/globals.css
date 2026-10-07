@@ -1,26 +1,168 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: oklch(0.99 0.002 260);
+  --foreground: oklch(0.2 0.02 265);
+  --muted: oklch(0.965 0.006 260);
+  --muted-foreground: oklch(0.5 0.02 262);
+  --card: oklch(1 0 0);
+  --border: oklch(0.91 0.008 260);
+  --input: oklch(0.9 0.01 260);
+  --primary: oklch(0.55 0.2 268);
+  --primary-foreground: oklch(0.99 0 0);
+  --accent: oklch(0.955 0.02 268);
+  --accent-foreground: oklch(0.35 0.12 268);
+  --ring: oklch(0.6 0.18 268);
+  --destructive: oklch(0.58 0.21 25);
+  --success: oklch(0.6 0.15 155);
+  --warning: oklch(0.72 0.16 75);
+  --code-bg: oklch(0.985 0.003 260);
+  --line-highlight: oklch(0.93 0.05 95 / 0.7);
+}
+
+.dark {
+  --background: oklch(0.16 0.012 265);
+  --foreground: oklch(0.94 0.008 260);
+  --muted: oklch(0.21 0.014 265);
+  --muted-foreground: oklch(0.68 0.02 262);
+  --card: oklch(0.19 0.013 265);
+  --border: oklch(0.28 0.016 265);
+  --input: oklch(0.3 0.016 265);
+  --primary: oklch(0.68 0.17 268);
+  --primary-foreground: oklch(0.15 0.02 265);
+  --accent: oklch(0.26 0.04 268);
+  --accent-foreground: oklch(0.88 0.06 268);
+  --ring: oklch(0.68 0.17 268);
+  --destructive: oklch(0.65 0.2 25);
+  --success: oklch(0.72 0.15 155);
+  --warning: oklch(0.8 0.15 80);
+  --code-bg: oklch(0.175 0.012 265);
+  --line-highlight: oklch(0.42 0.08 95 / 0.35);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-code-bg: var(--code-bg);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --animate-fade-in: fade-in 0.25s ease-out;
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * { border-color: var(--border); }
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: color-mix(in oklch, var(--primary) 30%, transparent); }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+}
+
+/* ---------- Code viewer (Shiki dual themes via CSS variables) ---------- */
+.code-view pre.shiki {
+  margin: 0;
+  padding: 0.75rem 0 2rem;
+  background: transparent !important;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  counter-reset: line;
+  min-width: max-content;
+}
+.code-view pre.shiki code { display: block; }
+.code-view .shiki span { color: var(--shiki-light); }
+.dark .code-view .shiki span { color: var(--shiki-dark); }
+.code-view .shiki.plain .line { color: var(--foreground); }
+.code-view .line {
+  display: inline-block;
+  min-width: 100%;
+  padding-right: 1.5rem;
+  scroll-margin-top: 30vh;
+}
+.code-view .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 3.5rem;
+  margin-right: 1.25rem;
+  padding-right: 0.75rem;
+  text-align: right;
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  user-select: none;
+  position: sticky;
+  left: 0;
+  background: var(--code-bg);
+}
+.code-view .line.highlighted,
+.code-view .line.highlighted::before { background: var(--line-highlight); }
+.code-view .line.highlighted::before { opacity: 1; color: var(--foreground); }
+
+/* ---------- Analysis markdown ---------- */
+.prose-analysis { font-size: 14px; line-height: 1.7; color: var(--foreground); }
+.prose-analysis > * + * { margin-top: 0.85em; }
+.prose-analysis h2 {
+  font-size: 1.05rem; font-weight: 650; margin-top: 1.6em; padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--border); letter-spacing: -0.01em;
+}
+.prose-analysis h2:first-child { margin-top: 0; }
+.prose-analysis h3 { font-size: 0.95rem; font-weight: 600; margin-top: 1.3em; }
+.prose-analysis ul { list-style: disc; padding-left: 1.25rem; }
+.prose-analysis ol { list-style: decimal; padding-left: 1.4rem; }
+.prose-analysis li + li { margin-top: 0.3em; }
+.prose-analysis li > p { margin: 0; }
+.prose-analysis strong { font-weight: 620; }
+.prose-analysis a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.prose-analysis :not(pre) > code {
+  font-family: var(--font-mono); font-size: 0.85em; padding: 0.1em 0.35em; border-radius: 0.3rem;
+  background: var(--muted); border: 1px solid var(--border);
+}
+.prose-analysis pre {
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; padding: 0.85rem 1rem;
+  border-radius: 0.6rem; background: var(--code-bg); border: 1px solid var(--border); overflow-x: auto;
+}
+.prose-analysis table { width: 100%; border-collapse: collapse; font-size: 13px; display: block; overflow-x: auto; }
+.prose-analysis th, .prose-analysis td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+.prose-analysis th { background: var(--muted); font-weight: 600; }
+.prose-analysis blockquote { border-left: 3px solid var(--border); padding-left: 0.85rem; color: var(--muted-foreground); }
+.prose-analysis .line-ref {
+  font-family: var(--font-mono); font-size: 0.8em; text-decoration: none; padding: 0.05em 0.4em;
+  border-radius: 0.35rem; background: var(--accent); color: var(--accent-foreground); white-space: nowrap;
+}
+.prose-analysis .line-ref:hover { filter: brightness(1.1); }
+
+.streaming-caret::after {
+  content: ""; display: inline-block; width: 0.5em; height: 1em; margin-left: 2px; vertical-align: -0.15em;
+  background: var(--primary); animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink { to { visibility: hidden; } }
+
+.bg-grid {
+  background-image: linear-gradient(to right, color-mix(in oklch, var(--border) 60%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--border) 60%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
 }
