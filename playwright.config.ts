@@ -8,8 +8,8 @@ const env = {
   NEXTAUTH_SECRET: "e2e-secret-0123456789abcdef0123456789abcdef",
   GITHUB_ID: "e2e",
   GITHUB_SECRET: "e2e",
-  ANTHROPIC_API_KEY: "e2e-key",
-  ANTHROPIC_BASE_URL: "http://127.0.0.1:4010",
+  GEMINI_API_KEY: "e2e-key",
+  GEMINI_BASE_URL: "http://127.0.0.1:4010",
   GITHUB_API_URL: "http://127.0.0.1:4010",
   DAILY_ANALYSIS_LIMIT: "5",
 };

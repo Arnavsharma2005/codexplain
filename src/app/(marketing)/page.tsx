@@ -43,7 +43,7 @@ const FAQ = [
   },
   {
     q: "Which AI model powers Codexplain?",
-    a: "Anthropic's Claude. Each mode is tuned differently: Overview favours speed, while Deep dive and Code review think harder.",
+    a: "Google's Gemini. Each mode is tuned differently: Overview favours speed, while Deep dive and Code review think harder.",
   },
   {
     q: "Is it free?",
@@ -51,7 +51,7 @@ const FAQ = [
   },
   {
     q: "Is my code sent anywhere?",
-    a: "Only the public file you choose to analyze is sent to the Claude API, together with a short list of file paths for context.",
+    a: "Only the public file you choose to analyze is sent to the Gemini API, together with a short list of file paths for context.",
   },
 ];
 
@@ -62,7 +62,7 @@ export default function LandingPage() {
         <div className="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_70%)]" />
         <div className="relative mx-auto flex max-w-4xl flex-col items-center px-6 pb-20 pt-20 text-center sm:pt-28">
           <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
-            <Sparkles className="size-3.5 text-primary" /> AI code explanations, powered by Claude
+            <Sparkles className="size-3.5 text-primary" /> AI code explanations, powered by Gemini
           </span>
           <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
             Understand any GitHub repository <span className="text-primary">in minutes</span>

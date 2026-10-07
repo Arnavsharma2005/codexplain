@@ -1,5 +1,5 @@
 import { getGitHubToken, getSession } from "@/lib/auth";
-import { AnalysisRefusedError, streamAnalysis } from "@/lib/analysis/claude";
+import { AnalysisRefusedError, ModelBusyError, streamAnalysis } from "@/lib/analysis/model";
 import { MODES, selectTreeContext, systemPrompt, userPrompt } from "@/lib/analysis/prompts";
 import { analyzeBodySchema } from "@/lib/api-schemas";
 import type { AnalyzeEvent } from "@/lib/api-types";
@@ -151,6 +151,8 @@ export const POST = handler(async (req: Request) => {
         await refundAnalysis(userId).catch(() => undefined);
         if (upstream.signal.aborted) {
           // Client cancelled; nothing to report.
+        } else if (err instanceof ModelBusyError) {
+          send({ type: "error", code: "MODEL_BUSY", message: "The AI model is handling too many requests right now. Your quota was not charged; please try again in a minute." });
         } else if (err instanceof AnalysisRefusedError) {
           send({ type: "error", code: "REFUSED", message: "This file couldn't be analyzed because it was flagged by a safety check." });
         } else {

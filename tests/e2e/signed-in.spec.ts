@@ -10,6 +10,7 @@ test.describe.serial("signed in", () => {
     const panel = page.locator(".prose-analysis");
     await expect(panel.getByRole("heading", { name: "Summary" })).toBeVisible();
     await expect(panel).toContainText("renameWidget");
+    await expect(panel).not.toContainText("SECRET THOUGHT");
     await expect(page.getByText("New", { exact: true })).toBeVisible();
     await expect(page.getByText("4 left today")).toBeVisible();
 

@@ -69,28 +69,26 @@ export const ANALYSIS_TEXT = [
   "It imports the slug helper from `src/utils/slugify.ts` (L1).",
 ].join("\n");
 
-function anthropic(req, res, body) {
-  const userText = JSON.stringify(body.messages ?? []);
+// Mimics Gemini's streamGenerateContent?alt=sse: a thought chunk (which must
+// never reach the user), then the answer in small text chunks, then usage.
+function gemini(req, res, model, body) {
+  if (!body.systemInstruction || !body.contents?.length) return json(res, 400, { error: { code: 400, message: "bad request" } });
   res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
-  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  const model = body.model;
-  send("message_start", {
-    type: "message_start",
-    message: { id: "msg_mock", type: "message", role: "assistant", model, content: [], stop_reason: null, stop_sequence: null,
-      usage: { input_tokens: Math.round(userText.length / 4), output_tokens: 0 } },
-  });
-  send("content_block_start", { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } });
+  const send = (data) => res.write(`data: ${JSON.stringify({ modelVersion: model, ...data })}\r\n\r\n`);
+  send({ candidates: [{ content: { role: "model", parts: [{ text: "SECRET THOUGHT", thought: true }] }, index: 0 }] });
   const chunks = ANALYSIS_TEXT.match(/[\s\S]{1,24}/g);
   let i = 0;
   const timer = setInterval(() => {
     if (i < chunks.length) {
-      send("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: chunks[i++] } });
+      send({ candidates: [{ content: { role: "model", parts: [{ text: chunks[i++] }] }, index: 0 }] });
       return;
     }
     clearInterval(timer);
-    send("content_block_stop", { type: "content_block_stop", index: 0 });
-    send("message_delta", { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 120 } });
-    send("message_stop", { type: "message_stop" });
+    const promptTokenCount = Math.round(JSON.stringify(body.contents).length / 4);
+    send({
+      candidates: [{ content: { role: "model", parts: [{ text: "" }] }, finishReason: "STOP", index: 0 }],
+      usageMetadata: { promptTokenCount, candidatesTokenCount: 120, thoughtsTokenCount: 40, totalTokenCount: promptTokenCount + 160 },
+    });
     res.end();
   }, 15);
   res.on("close", () => clearInterval(timer));
@@ -100,10 +98,11 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = decodeURIComponent(url.pathname);
 
-  if (req.method === "POST" && p === "/v1/messages") {
+  const generate = p.match(/^\/v1beta\/models\/([^/:]+):streamGenerateContent$/);
+  if (req.method === "POST" && generate) {
     let raw = "";
     req.on("data", (c) => (raw += c));
-    req.on("end", () => anthropic(req, res, JSON.parse(raw)));
+    req.on("end", () => gemini(req, res, generate[1], JSON.parse(raw)));
     return;
   }
 

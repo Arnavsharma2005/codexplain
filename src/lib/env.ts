@@ -6,8 +6,11 @@ const schema = z.object({
   NEXTAUTH_SECRET: z.string().min(32, "NEXTAUTH_SECRET must be at least 32 characters"),
   GITHUB_ID: z.string().min(1),
   GITHUB_SECRET: z.string().min(1),
-  ANTHROPIC_API_KEY: z.string().min(1),
-  ANTHROPIC_MODEL: z.string().min(1).default("claude-opus-5-5"),
+  // Free key from https://aistudio.google.com/apikey
+  GEMINI_API_KEY: z.string().min(1),
+  GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
+  // Overridable for tests (pointed at a local mock server).
+  GEMINI_BASE_URL: z.url().optional(),
   // Optional server token so signed-out visitors can browse public repos
   // without hitting GitHub's 60 requests/hour anonymous limit.
   GITHUB_SERVER_TOKEN: z.string().optional(),

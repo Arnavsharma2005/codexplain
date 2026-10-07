@@ -8,19 +8,19 @@ export const MODES: Record<
     label: "Overview",
     description: "A fast, plain-English summary of what this file does and why it exists.",
     effort: "low",
-    maxTokens: 6_000,
+    maxTokens: 8_192,
   },
   DEEP_DIVE: {
     label: "Deep dive",
     description: "A section-by-section walkthrough of the logic, data flow and key functions.",
     effort: "high",
-    maxTokens: 16_000,
+    maxTokens: 24_576,
   },
   REVIEW: {
     label: "Code review",
     description: "Bugs, security issues, performance and readability, ranked by severity with fixes.",
     effort: "high",
-    maxTokens: 16_000,
+    maxTokens: 24_576,
   },
 };
 

@@ -1,6 +1,6 @@
 # Codexplain
 
-**Understand any GitHub repository in minutes.** Paste a repo link, browse its files, open one, and get a clear explanation, a deep dive, or a code review from Claude. Every claim links back to the exact lines it describes.
+**Understand any GitHub repository in minutes.** Paste a repo link, browse its files, open one, and get a clear explanation, a deep dive, or a code review from Google Gemini. Every claim links back to the exact lines it describes.
 
 ![Workspace: file tree, highlighted code and a streamed analysis with clickable line references](docs/workspace.png)
 
@@ -30,7 +30,7 @@
 | Input validation | Zod schemas check every owner, repo, ref and path. Path traversal and malformed refs are rejected with a 400. |
 | CSRF | State-changing endpoints require a same-origin `Origin` header. |
 | Abuse limits | Per-IP and per-user rate limits apply. A daily analysis quota is enforced atomically in Postgres, and the quota is refunded when an analysis fails. |
-| Prompt injection | File contents are passed to Claude as clearly delimited untrusted data, and the system prompt tells the model never to follow instructions found inside them. |
+| Prompt injection | File contents are passed to the model as clearly delimited untrusted data, and the system prompt tells the model never to follow instructions found inside them. |
 | Output rendering | Markdown renders without raw HTML, so model output can't inject scripts. |
 | Headers | The app sends a strict Content-Security-Policy, `X-Frame-Options: DENY`, `nosniff` and a referrer policy. In production it also sends HSTS and `upgrade-insecure-requests`. |
 | Privacy | Only public repositories are supported. Share links use 128-bit random slugs, and shared pages are `noindex`. |
@@ -41,7 +41,7 @@
 Browser ──► Next.js App Router (React Server Components + route handlers)
               │
               ├─ /api/github/*   ─► GitHub REST API (repo, refs, tree, file), cached with revalidate
-              ├─ /api/analyze    ─► Claude API (streaming) ─► NDJSON stream to the browser
+              ├─ /api/analyze    ─► Gemini API (streaming) ─► NDJSON stream to the browser
               ├─ /api/analyses   ─► history, share/revoke
               └─ Prisma ─► Postgres (users, repositories, cached analyses, views, usage)
 ```
@@ -52,14 +52,14 @@ How an analysis request flows through `/api/analyze`:
 2. It re-fetches the file from GitHub. It never trusts file content sent by the client.
 3. On a cache hit (same repository, path, file SHA and mode), it returns the stored analysis immediately.
 4. Otherwise it reserves one unit of quota with a single conditional `INSERT … ON CONFLICT … WHERE count < limit`.
-5. It streams the analysis from Claude, sending a cached system prompt plus the line-numbered file and a relevant slice of the repository tree. It forwards `delta` events to the browser as NDJSON.
+5. It streams the analysis from Gemini, sending the system prompt plus the line-numbered file and a relevant slice of the repository tree. It forwards `delta` events to the browser as NDJSON.
 6. It saves the result and records it in the user's history. On error or client abort, it refunds the quota.
 
 **Tech:**
 
 - Next.js 16, React 19, TypeScript and Tailwind CSS v4, with Radix primitives
 - NextAuth (GitHub) and Prisma on Postgres
-- Anthropic TypeScript SDK and Shiki
+- Google Gen AI SDK (Gemini) and Shiki
 - Tests with Vitest and Playwright
 
 ## Running locally
@@ -79,7 +79,7 @@ npm run dev               # http://localhost:3000
    - Homepage URL: `http://localhost:3000`
    - Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
    - Copy the client ID and a client secret into `GITHUB_ID` and `GITHUB_SECRET`.
-2. **Claude API key.** Create one at [console.anthropic.com](https://console.anthropic.com) and set `ANTHROPIC_API_KEY`.
+2. **Gemini API key (free).** Create one at [Google AI Studio](https://aistudio.google.com/apikey) and set `GEMINI_API_KEY`. No card is needed. The free tier allows a few requests a minute, so when it is busy the app shows a friendly "try again" message and doesn't charge the user's quota.
 3. **Session secret.** Run `openssl rand -base64 32` and put the result in `NEXTAUTH_SECRET`.
 
 ## Tests
@@ -90,7 +90,7 @@ npm test            # unit tests (URL parsing, validation, line refs, prompts, t
 npm run test:e2e    # Playwright, desktop + mobile
 ```
 
-The end-to-end suite runs the production build against a local mock of the GitHub and Claude APIs (`tests/e2e/mock-server.mjs`) and a `codexplain_test` database. It needs no real credentials. It covers:
+The end-to-end suite runs the production build against a local mock of the GitHub and Gemini APIs (`tests/e2e/mock-server.mjs`) and a `codexplain_test` database. It needs no real credentials. It covers:
 
 - deep links
 - tree filtering

@@ -22,7 +22,8 @@ export default function PrivacyPage() {
       <h2>Third parties</h2>
       <p>
         When you request an analysis, the contents of that public file and a list of file paths from the same repository
-        are sent to Anthropic&apos;s Claude API to generate the result. Code is fetched from GitHub&apos;s public API.
+        are sent to Google&apos;s Gemini API to generate the result. On Gemini&apos;s free tier, Google may use that content to
+        improve its products, so only public code is ever sent. Code is fetched from GitHub&apos;s public API.
       </p>
       <h2>Sharing</h2>
       <p>Analyses are private to your history unless you create a share link. You can revoke a share link at any time.</p>
