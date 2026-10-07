@@ -48,7 +48,24 @@ export const GET = handler(async (req: Request) => {
     language: v.analysis.language,
     shareSlug: v.shareSlug,
     updatedAt: v.updatedAt.toISOString(),
-    preview: v.analysis.content.replace(/[#*`>_|-]/g, "").replace(/\s+/g, " ").trim().slice(0, 180),
+    preview: previewOf(v.analysis.content),
   }));
   return NextResponse.json({ items, nextCursor: hasMore ? items[items.length - 1].viewId : null });
 });
+
+/** Plain-text teaser of an analysis: skips headings and code, strips markdown, cuts on a word. */
+function previewOf(markdown: string, max = 220): string {
+  const text = markdown
+    .replace(/```[\s\S]*?(```|$)/g, " ")
+    .split("\n")
+    .filter((line) => !/^\s*#{1,6}\s/.test(line))
+    .map((line) => line.replace(/^\s*(?:[-*+]|\d+\.)\s+/, ""))
+    .join(" ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`>|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), max - 30)).replace(/[\s,.;:(]+$/, "")}…`;
+}

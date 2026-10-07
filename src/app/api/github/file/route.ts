@@ -22,7 +22,7 @@ export const GET = handler(async (req: Request) => {
     size: file.size,
     language,
     htmlUrl: file.htmlUrl,
-    lineCount: file.content != null ? file.content.split("\n").length : 0,
+    lineCount: file.content != null ? file.content.replace(/\r?\n$/, "").split(/\r?\n/).length : 0,
     content: file.content,
     html,
     ...(file.reason ? { reason: file.reason } : {}),

@@ -50,7 +50,9 @@ export default async function RepoPage({ params, searchParams }: Props) {
       qs.set("ref", split.ref);
       if (split.path) qs.set(str(sp.kind) === "tree" ? "dir" : "path", split.path);
     }
-    redirect(`/r/${encodeURIComponent(info.owner)}/${encodeURIComponent(info.name)}${qs.size ? `?${qs}` : ""}`);
+    const lines = str(sp.L);
+    const hash = lines && /^L\d+(-L\d+)?$/.test(lines) ? `#${lines}` : "";
+    redirect(`/r/${encodeURIComponent(info.owner)}/${encodeURIComponent(info.name)}${qs.size ? `?${qs}` : ""}${hash}`);
   }
 
   const refParam = str(sp.ref);

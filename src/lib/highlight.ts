@@ -37,7 +37,8 @@ function plainHtml(code: string) {
  * Shiki escapes all source text, so the output is safe to inject.
  */
 export async function highlight(code: string, lang: string): Promise<string> {
-  const normalized = code.replace(/\r\n?/g, "\n");
+  // Drop one trailing newline so the last line number matches GitHub.
+  const normalized = code.replace(/\r\n?/g, "\n").replace(/\n$/, "");
   const lineCount = normalized.split("\n").length;
   if (lang === "text" || normalized.length > MAX_HIGHLIGHT_CHARS || lineCount > MAX_HIGHLIGHT_LINES) {
     return plainHtml(normalized);

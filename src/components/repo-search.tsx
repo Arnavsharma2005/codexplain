@@ -14,8 +14,12 @@ export function workspaceHref(input: string): string | null {
   const params = new URLSearchParams();
   if (parsed.refAndPath?.length) params.set("at", parsed.refAndPath.join("/"));
   if (parsed.kind) params.set("kind", parsed.kind);
+  const hash = parsed.line ? `#L${parsed.line}${parsed.lineEnd ? `-L${parsed.lineEnd}` : ""}` : "";
+  // The ?at= form is canonicalised by a server redirect, which can't see the
+  // URL hash, so carry the line range in the query for that hop.
+  if (hash && params.has("at")) params.set("L", hash.slice(1));
   const qs = params.toString();
-  return `${base}${qs ? `?${qs}` : ""}${parsed.line ? `#L${parsed.line}` : ""}`;
+  return `${base}${qs ? `?${qs}` : ""}${hash}`;
 }
 
 export function RepoSearch({ size = "lg", autoFocus, className }: { size?: "lg" | "sm"; autoFocus?: boolean; className?: string }) {

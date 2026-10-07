@@ -93,7 +93,7 @@ export function selectTreeContext(allPaths: string[], filePath: string, limit = 
 }
 
 export function numberLines(content: string): string {
-  const lines = content.replace(/\r\n?/g, "\n").split("\n");
+  const lines = content.replace(/\r\n?/g, "\n").replace(/\n$/, "").split("\n");
   const width = String(lines.length).length;
   return lines.map((line, i) => `${String(i + 1).padStart(width, " ")} | ${line}`).join("\n");
 }

@@ -10,8 +10,10 @@ export type ParsedGitHubUrl = {
    * the split between ref and path is resolved later against the repo's refs.
    */
   refAndPath?: string[];
-  /** Line number from a #L42 or #L42-L50 anchor. */
+  /** First line from a #L42 or #L42-L50 anchor. */
   line?: number;
+  /** Last line when the anchor was a range (#L42-L50). */
+  lineEnd?: number;
 };
 
 const GITHUB_HOSTS = new Set(["github.com", "www.github.com"]);
@@ -65,8 +67,12 @@ export function parseGitHubUrl(input: string): ParsedGitHubUrl | null {
     result.refAndPath = rest;
   }
 
-  const lineMatch = url.hash.match(/^#L(\d+)/);
-  if (lineMatch) result.line = Number(lineMatch[1]);
+  const lineMatch = url.hash.match(/^#L(\d+)(?:-L?(\d+))?/);
+  if (lineMatch) {
+    result.line = Number(lineMatch[1]);
+    const end = lineMatch[2] ? Number(lineMatch[2]) : undefined;
+    if (end && end > result.line) result.lineEnd = end;
+  }
 
   return validate(result);
 }
