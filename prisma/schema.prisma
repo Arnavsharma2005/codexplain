@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------- NextAuth ----------
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String?        @unique
+  emailVerified DateTime?
+  image         String?
+  githubLogin   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  repoVisits    RepoVisit[]
+  analyses      Analysis[]
+  analysisViews AnalysisView[]
+  usage         UsageDay[]
+}
+
+// OAuth tokens are intentionally NOT persisted here (see src/lib/auth.ts).
+// The GitHub access token only lives inside the encrypted session JWT.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- Codexplain ----------
+
+model Repository {
+  id            String      @id @default(cuid())
+  owner         String
+  name          String
+  description   String?
+  defaultBranch String
+  stars         Int         @default(0)
+  language      String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  visits        RepoVisit[]
+  analyses      Analysis[]
+
+  @@unique([owner, name])
+}
+
+model RepoVisit {
+  id           String     @id @default(cuid())
+  userId       String
+  repositoryId String
+  starred      Boolean    @default(false)
+  visitCount   Int        @default(1)
+  lastVisited  DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, repositoryId])
+  @@index([userId, lastVisited])
+}
+
+enum AnalysisMode {
+  OVERVIEW
+  DEEP_DIVE
+  REVIEW
+}
+
+// One row per (repository, path, file content SHA, mode). The SHA makes this
+// both a cache key and a correctness guard: a changed file never reuses an old
+// analysis. `createdById` records who first generated it; `AnalysisView`
+// records every user who has it in their history.
+model Analysis {
+  id           String         @id @default(cuid())
+  repositoryId String
+  createdById  String?
+  path         String
+  ref          String
+  fileSha      String
+  language     String?
+  mode         AnalysisMode
+  content      String         @db.Text
+  model        String
+  inputTokens  Int            @default(0)
+  outputTokens Int            @default(0)
+  durationMs   Int            @default(0)
+  createdAt    DateTime       @default(now())
+  repository   Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  createdBy    User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  views        AnalysisView[]
+
+  @@unique([repositoryId, path, fileSha, mode])
+}
+
+model AnalysisView {
+  id         String   @id @default(cuid())
+  userId     String
+  analysisId String
+  shareSlug  String?  @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis   Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, analysisId])
+  @@index([userId, updatedAt])
+}
+
+model UsageDay {
+  userId String
+  day    DateTime @db.Date
+  count  Int      @default(0)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+}
