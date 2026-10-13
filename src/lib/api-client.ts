@@ -36,6 +36,8 @@ export async function apiSend<T = unknown>(url: string, method: "POST" | "DELETE
     method,
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
+    // Small mutations (save, revoke) should finish even if the user navigates away right after.
+    keepalive: true,
   });
   if (!res.ok) throw await toError(res);
   if (res.status === 204) return undefined as T;
