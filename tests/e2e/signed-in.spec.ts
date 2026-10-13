@@ -58,7 +58,10 @@ test.describe.serial("signed in", () => {
 
   test("saves a repository to the dashboard", async ({ page }) => {
     await page.goto("/r/acme/widgets");
+    // The button flips to "Saved" optimistically, so wait for the request itself before leaving.
+    const saved = page.waitForResponse((r) => r.url().includes("/api/repos/star") && r.request().method() === "POST");
     await page.getByRole("button", { name: "Save", exact: true }).click();
+    expect((await saved).ok()).toBe(true);
     await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Saved" }).locator("..")).toContainText("widgets");

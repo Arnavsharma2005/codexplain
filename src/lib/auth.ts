@@ -7,26 +7,15 @@ import { cookies } from "next/headers";
 import { decode } from "next-auth/jwt";
 import { getServerSession } from "next-auth";
 import { db } from "@/lib/db";
+import { storedAccount } from "@/lib/auth-account";
 import { env } from "@/lib/env";
 
-/**
- * Prisma adapter that never writes OAuth tokens to the database. The GitHub
- * token is kept only in the encrypted JWT session cookie, so a database leak
- * exposes no credentials.
- */
+/** Prisma adapter that never writes OAuth tokens (or unknown fields) to the database. */
 function tokenlessAdapter(): Adapter {
   const base = PrismaAdapter(db) as Adapter;
   return {
     ...base,
-    linkAccount: (account: AdapterAccount) =>
-      base.linkAccount!({
-        ...account,
-        access_token: undefined,
-        refresh_token: undefined,
-        id_token: undefined,
-        expires_at: undefined,
-        session_state: undefined,
-      }),
+    linkAccount: (account: AdapterAccount) => base.linkAccount!(storedAccount(account)),
   };
 }
 
@@ -42,6 +31,10 @@ export function authOptions(): NextAuthOptions {
         clientSecret: e.GITHUB_SECRET,
         // Public data only: we never ask for access to private repositories.
         authorization: { params: { scope: "read:user user:email" } },
+        // GitHub is the only sign-in method and verifies emails, so an existing
+        // user with the same email is the same person. This also recovers users
+        // left without a linked account by an interrupted first sign-in.
+        allowDangerousEmailAccountLinking: true,
       }),
     ],
     pages: { signIn: "/login", error: "/login" },
