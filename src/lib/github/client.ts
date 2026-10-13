@@ -50,6 +50,10 @@ async function gh<T>(endpoint: string, { token, revalidate = 60 }: Opts = {}): P
 
   if (res.ok) return (await res.json()) as T;
 
+  // A signed-in user's token can expire (GitHub Apps issue 8-hour tokens).
+  // Public data doesn't need it, so retry once without it.
+  if (res.status === 401 && token) return gh<T>(endpoint, { revalidate });
+
   const remaining = res.headers.get("x-ratelimit-remaining");
   const reset = res.headers.get("x-ratelimit-reset");
   if (res.status === 429 || (res.status === 403 && remaining === "0")) {
