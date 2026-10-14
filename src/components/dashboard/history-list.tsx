@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Link2, Link2Off, Loader2, MoreHorizontal, Search, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Link2, Link2Off, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
 import { ApiClientError, apiGet, apiSend } from "@/lib/api-client";
 import type { AnalysisModeKey } from "@/lib/api-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileIcon } from "@/components/workspace/file-icon";
+import { EmptyState } from "@/components/empty-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +33,9 @@ type Item = {
   preview: string;
 };
 
-const MODE_LABEL: Record<AnalysisModeKey, string> = { OVERVIEW: "Overview", DEEP_DIVE: "Deep dive", REVIEW: "Review" };
+const MODE_LABEL: Record<AnalysisModeKey, string> = { OVERVIEW: "Overview", DEEP_DIVE: "Deep dive", REVIEW: "Code review" };
+const MODE_TONE: Record<AnalysisModeKey, string> = { OVERVIEW: "marker-orange", DEEP_DIVE: "marker-teal", REVIEW: "marker-jungle" };
+const UNDO_MS = 5000;
 
 async function fetchPage(q: string, after: string | null, signal?: AbortSignal) {
   const qs = new URLSearchParams();
@@ -53,6 +55,8 @@ export function HistoryList() {
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const requestKey = `${debounced}#${reloadTick}`;
   const loading = loadedKey !== requestKey;
+  /** Removals waiting out their Undo window: analysis id → commit. */
+  const pendingRemovals = useRef(new Map<string, () => void>());
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 250);
@@ -64,7 +68,7 @@ export function HistoryList() {
     const ctrl = new AbortController();
     fetchPage(debounced, null, ctrl.signal)
       .then((res) => {
-        setItems(res.items);
+        setItems(res.items.filter((i) => !pendingRemovals.current.has(i.id)));
         setCursor(res.nextCursor);
         setError(null);
         setLoadedKey(requestKey);
@@ -76,6 +80,22 @@ export function HistoryList() {
       });
     return () => ctrl.abort();
   }, [debounced, requestKey]);
+
+  // Removals still inside their Undo window are sent when the page goes away.
+  useEffect(() => {
+    const pending = pendingRemovals.current;
+    function flush() {
+      for (const id of pending.keys()) {
+        void fetch(`/api/analyses/${id}`, { method: "DELETE", keepalive: true }).catch(() => undefined);
+      }
+      pending.clear();
+    }
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
 
   const reload = useCallback(() => setReloadTick((n) => n + 1), []);
 
@@ -93,15 +113,39 @@ export function HistoryList() {
     }
   }
 
-  async function remove(item: Item) {
+  function remove(item: Item) {
+    const index = items.findIndex((i) => i.viewId === item.viewId);
     setItems((prev) => prev.filter((i) => i.viewId !== item.viewId));
-    try {
-      await apiSend(`/api/analyses/${item.id}`, "DELETE");
-      toast.success("Removed from history");
-    } catch {
-      toast.error("Couldn't remove it. Please try again.");
-      reload();
-    }
+    let settled = false;
+    const commit = () => {
+      if (settled) return;
+      settled = true;
+      pendingRemovals.current.delete(item.id);
+      apiSend(`/api/analyses/${item.id}`, "DELETE").catch(() => {
+        toast.error("Couldn't remove it. Please try again.");
+        reload();
+      });
+    };
+    pendingRemovals.current.set(item.id, commit);
+    toast("Removed from history", {
+      duration: UNDO_MS,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          if (settled) return;
+          settled = true;
+          pendingRemovals.current.delete(item.id);
+          setItems((prev) => {
+            if (prev.some((i) => i.viewId === item.viewId)) return prev;
+            const next = [...prev];
+            next.splice(Math.min(index, next.length), 0, item);
+            return next;
+          });
+        },
+      },
+      onAutoClose: commit,
+      onDismiss: commit,
+    });
   }
 
   async function toggleShare(item: Item) {
@@ -114,7 +158,7 @@ export function HistoryList() {
         const { slug, url } = await apiSend<{ slug: string; url: string }>(`/api/analyses/${item.id}/share`, "POST");
         setItems((prev) => prev.map((i) => (i.viewId === item.viewId ? { ...i, shareSlug: slug } : i)));
         await navigator.clipboard.writeText(url).catch(() => undefined);
-        toast.success("Share link copied", { description: url });
+        toast.success("Share link copied", { description: <span className="font-mono">{url}</span> });
       }
     } catch (err) {
       toast.error(err instanceof ApiClientError ? err.message : "Something went wrong.");
@@ -122,58 +166,74 @@ export function HistoryList() {
   }
 
   return (
-    <div className="mt-4">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by repository or file path"
-          aria-label="Search history"
-          className="h-10 w-full rounded-xl border border-input bg-card pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        />
-      </div>
+    <div>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search by repository or file path"
+        aria-label="Search history"
+        className="h-10 w-full border-2 border-ink bg-paper-raised px-3 text-[15px] text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
+      />
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-4">
         {loading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          <div className="ruled-list" aria-busy="true">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-2 py-4 pl-10">
+                <Skeleton className="h-3.5 w-1/2" />
+                <Skeleton className="h-3 w-5/6" />
+                <Skeleton className="h-2.5 w-1/4" />
+              </div>
+            ))}
+          </div>
         ) : error ? (
-          <div className="rounded-xl border border-border p-6 text-center text-sm text-muted-foreground">
-            {error}{" "}
-            <button className="text-primary underline" onClick={reload}>
+          <div className="flex flex-wrap items-center gap-3 border-t-2 border-ink py-4">
+            <AlertTriangle className="size-4 text-danger" aria-hidden />
+            <p>{error}</p>
+            <Button variant="secondary" size="sm" onClick={reload}>
               Retry
-            </button>
+            </Button>
           </div>
         ) : items.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border px-6 py-14 text-center">
-            <Sparkles className="mx-auto size-6 text-primary" />
-            <p className="mt-3 font-medium">{debounced ? "No analyses match your search" : "No analyses yet"}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <div className="border-t-2 border-ink">
+            <EmptyState
+              title={debounced ? "No analyses match your search" : "No analyses yet"}
+              action={
+                !debounced ? (
+                  <Button asChild variant="secondary">
+                    <Link href="/r/vercel/next.js">Try a sample repository</Link>
+                  </Button>
+                ) : null
+              }
+            >
               {debounced ? "Try a different repository or file name." : "Open a repository, pick a file and generate your first analysis."}
-            </p>
-            {!debounced ? (
-              <Button asChild size="sm" className="mt-5">
-                <Link href="/r/vercel/next.js">Try a sample repository</Link>
-              </Button>
-            ) : null}
+            </EmptyState>
           </div>
         ) : (
-          items.map((item) => {
-            const href = `/r/${item.owner}/${item.repo}?${new URLSearchParams({ ref: item.ref, path: item.path })}`;
-            return (
-              <div key={item.viewId} className="group relative rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50">
-                <div className="flex items-start gap-3">
-                  <FileIcon path={item.path} className="mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <Link href={href} className="block truncate font-mono text-[13px] after:absolute after:inset-0">
-                      <span className="text-muted-foreground">{item.owner}/{item.repo}/</span>
-                      <span className="font-semibold">{item.path}</span>
+          <ol className="ruled-list">
+            {items.map((item, i) => {
+              const href = `/r/${item.owner}/${item.repo}?${new URLSearchParams({ ref: item.ref, path: item.path })}`;
+              return (
+                <li key={item.viewId} className="row-hover relative grid grid-cols-[40px_minmax(0,1fr)_32px] gap-x-1 py-4">
+                  <span aria-hidden className="font-mono text-[13px] leading-5 text-label tabular">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="min-w-0">
+                    {/* The link's children stay inline spans so its accessible name has no spaces. */}
+                    <Link href={href} className="row-link row-name block truncate font-mono text-[15px] leading-5">
+                      <span className="text-ink-muted">
+                        {item.owner}/{item.repo}/
+                      </span>
+                      <span className="text-ink">{item.path}</span>
                     </Link>
-                    <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{item.preview}</p>
-                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="outline">{MODE_LABEL[item.mode]}</Badge>
-                      {item.shareSlug ? <Badge variant="success"><Link2 /> Shared</Badge> : null}
-                      <span>{timeAgo(item.updatedAt)}</span>
+                    <p className="mt-1 line-clamp-2 text-[15px] leading-[22px] text-ink-muted">{item.preview}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="caption inline-flex items-center gap-1.5">
+                        <span aria-hidden className={`swatch ${MODE_TONE[item.mode]}`} />
+                        {MODE_LABEL[item.mode]}
+                      </span>
+                      {item.shareSlug ? <Badge variant="shared">Shared</Badge> : null}
+                      <span className="meta">{timeAgo(item.updatedAt)}</span>
                     </div>
                   </div>
                   <DropdownMenu>
@@ -185,34 +245,39 @@ export function HistoryList() {
                     <DropdownMenuContent align="end">
                       {item.shareSlug ? (
                         <DropdownMenuItem asChild>
-                          <a href={`/a/${item.shareSlug}`} target="_blank" rel="noreferrer"><Link2 /> Open shared page</a>
+                          <a href={`/a/${item.shareSlug}`} target="_blank" rel="noreferrer">
+                            <Link2 /> Open shared page
+                          </a>
                         </DropdownMenuItem>
                       ) : null}
                       <DropdownMenuItem onSelect={() => void toggleShare(item)}>
-                        {item.shareSlug ? <><Link2Off /> Revoke share link</> : <><Link2 /> Create share link</>}
+                        {item.shareSlug ? (
+                          <>
+                            <Link2Off /> Revoke share link
+                          </>
+                        ) : (
+                          <>
+                            <Link2 /> Create share link
+                          </>
+                        )}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => void remove(item)} className="text-destructive">
-                        <Trash2 className="!text-destructive" /> Remove from history
+                      <DropdownMenuItem onSelect={() => remove(item)} className="text-danger [&_svg]:!text-danger">
+                        <Trash2 /> Remove from history
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </div>
-              </div>
-            );
-          })
+                </li>
+              );
+            })}
+          </ol>
         )}
       </div>
 
       {cursor && !loading ? (
-        <div className="mt-4 flex justify-center">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loadingMore}
-            onClick={() => void loadMore()}
-          >
-            {loadingMore ? <Loader2 className="animate-spin" /> : null} Load more
+        <div className="mt-4">
+          <Button variant="secondary" size="sm" disabled={loadingMore} aria-busy={loadingMore || undefined} onClick={() => void loadMore()}>
+            {loadingMore ? <Loader2 className="motion-safe:animate-spin" /> : null} Load more
           </Button>
         </div>
       ) : null}

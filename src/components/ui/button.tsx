@@ -4,22 +4,27 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap border-2 font-sans font-bold uppercase tracking-[.1em] text-[14px] leading-none transition-colors duration-[120ms] cursor-pointer disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4 [&_svg]:shrink-0 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
-        secondary: "bg-muted text-foreground hover:bg-muted/70 border border-border",
-        outline: "border border-border bg-transparent hover:bg-muted",
-        ghost: "hover:bg-muted text-foreground",
-        destructive: "bg-destructive text-white hover:bg-destructive/90",
-        link: "text-primary underline-offset-4 hover:underline",
+        default: "border-orange bg-orange text-on-orange hover:border-ink hover:bg-ink hover:text-paper",
+        secondary: "border-ink bg-transparent text-ink hover:bg-ink hover:text-paper",
+        outline: "border-ink bg-transparent text-ink hover:bg-ink hover:text-paper",
+        ghost: "border-transparent border-b-[3px] text-ink hover:border-b-orange",
+        "ghost-icon": "border-transparent text-ink hover:bg-paper-sunk",
+        plate: "border-transparent text-plate-fg hover:bg-plate-hover",
+        "plate-quiet": "border-transparent text-plate-muted hover:bg-plate-hover hover:text-plate-fg aria-pressed:bg-plate-hover aria-pressed:text-plate-fg",
+        "plate-outline": "border-plate-fg bg-transparent text-plate-fg hover:bg-plate-fg hover:text-plate",
+        destructive: "border-danger bg-transparent text-danger hover:bg-danger hover:text-paper",
+        link: "border-0 border-b-[3px] border-b-orange px-0 text-ink hover:text-label",
       },
       size: {
-        default: "h-9 px-4",
-        sm: "h-8 px-3 text-[13px]",
-        lg: "h-11 px-6 text-[15px]",
-        icon: "size-9",
+        default: "h-10 px-4",
+        sm: "h-8 px-3",
+        lg: "h-12 px-5",
+        hero: "h-14 px-5",
+        icon: "size-10",
         "icon-sm": "size-8",
       },
     },
@@ -36,7 +41,9 @@ export interface ButtonProps
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    return <Comp ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+    // Icon-sized ghost buttons are squares with a fill on hover, not an underline.
+    const v = variant === "ghost" && (size === "icon" || size === "icon-sm") ? "ghost-icon" : variant;
+    return <Comp ref={ref} className={cn(buttonVariants({ variant: v, size }), className)} {...props} />;
   },
 );
 Button.displayName = "Button";

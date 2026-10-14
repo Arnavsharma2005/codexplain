@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { ArrowRight, Loader2, Search } from "lucide-react";
+import { useId, useState, useTransition } from "react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { parseGitHubUrl } from "@/lib/github/parse-url";
 import { cn } from "@/lib/utils";
 
@@ -22,8 +22,19 @@ export function workspaceHref(input: string): string | null {
   return `${base}${qs ? `?${qs}` : ""}${hash}`;
 }
 
-export function RepoSearch({ size = "lg", autoFocus, className }: { size?: "lg" | "sm"; autoFocus?: boolean; className?: string }) {
+type Props = {
+  size?: "lg" | "sm";
+  /** "header": the 36px field in the site header. */
+  variant?: "page" | "header";
+  autoFocus?: boolean;
+  hint?: boolean;
+  className?: string;
+};
+
+export function RepoSearch({ size = "lg", variant = "page", autoFocus, hint, className }: Props) {
   const router = useRouter();
+  const errorId = useId();
+  const hintId = useId();
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -44,16 +55,18 @@ export function RepoSearch({ size = "lg", autoFocus, className }: { size?: "lg" 
   }
 
   const large = size === "lg";
+  const height = large ? "h-14" : variant === "header" ? "h-9" : "h-10";
+  const describedBy = [error ? errorId : null, hint ? hintId : null].filter(Boolean).join(" ") || undefined;
+
   return (
     <form onSubmit={submit} className={cn("w-full", className)} noValidate>
       <div
         className={cn(
-          "group flex items-center gap-2 rounded-xl border bg-card transition-shadow focus-within:ring-2 focus-within:ring-ring/50",
-          error ? "border-destructive/70" : "border-border",
-          large ? "h-14 pl-4 pr-2 shadow-lg shadow-primary/5" : "h-9 pl-3 pr-1",
+          "repo-field flex items-stretch border-2 bg-paper-raised",
+          error ? "border-danger" : "border-ink",
+          height,
         )}
       >
-        <Search className={cn("shrink-0 text-muted-foreground", large ? "size-5" : "size-4")} />
         <input
           value={value}
           onChange={(e) => {
@@ -65,23 +78,41 @@ export function RepoSearch({ size = "lg", autoFocus, className }: { size?: "lg" 
           autoComplete="off"
           aria-label="GitHub repository URL"
           aria-invalid={!!error}
-          aria-describedby={error ? "repo-search-error" : undefined}
-          placeholder={large ? "Paste a GitHub URL, e.g. github.com/vercel/next.js" : "Open another repository…"}
-          className={cn("min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground/70", large ? "text-base" : "text-sm")}
+          aria-describedby={describedBy}
+          placeholder={large ? "github.com/owner/repo" : "Open another repository…"}
+          className={cn(
+            "min-w-0 flex-1 bg-transparent font-medium text-ink outline-none focus-visible:outline-none",
+            large ? "pl-4 text-[18px]" : "pl-3 text-[15px]",
+          )}
         />
         <button
           type="submit"
           disabled={pending}
+          aria-busy={pending || undefined}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70",
-            large ? "h-10 px-4 text-sm" : "h-7 px-2.5 text-xs",
+            "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 bg-orange font-bold uppercase leading-none tracking-[.1em] text-on-orange transition-colors duration-[120ms] hover:bg-ink hover:text-paper disabled:opacity-70",
+            large ? "min-w-[120px] px-5 text-[14px] max-[400px]:min-w-[96px] max-[400px]:px-3" : "min-w-12 px-3 text-[14px]",
           )}
         >
-          {pending ? <Loader2 className="size-4 animate-spin" /> : large ? <>Explore <ArrowRight className="size-4" /></> : "Go"}
+          {pending ? (
+            <Loader2 className="size-4 motion-safe:animate-spin" aria-label="Opening" />
+          ) : large ? (
+            <>
+              Explore <span aria-hidden>→</span>
+            </>
+          ) : (
+            "Go"
+          )}
         </button>
       </div>
+      {hint ? (
+        <p id={hintId} className="meta mt-2">
+          Repository, branch, folder and file links all work.
+        </p>
+      ) : null}
       {error ? (
-        <p id="repo-search-error" role="alert" className={cn("mt-2 text-destructive", large ? "text-sm" : "text-xs")}>
+        <p id={errorId} role="alert" className="mt-2 flex items-start gap-2 text-[14px] font-semibold text-danger">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
           {error}
         </p>
       ) : null}

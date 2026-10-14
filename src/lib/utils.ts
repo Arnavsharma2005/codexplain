@@ -32,3 +32,8 @@ export function timeAgo(date: Date | string): string {
   }
   return "just now";
 }
+
+/** "1 line", "13 lines", "1,204 lines". */
+export function plural(n: number, word: string): string {
+  return `${n.toLocaleString("en")} ${word}${n === 1 ? "" : "s"}`;
+}

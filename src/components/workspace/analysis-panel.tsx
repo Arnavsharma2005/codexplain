@@ -3,49 +3,46 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
-import {
-  AlertTriangle,
-  Check,
-  Copy,
-  Loader2,
-  RotateCcw,
-  Share2,
-  Sparkles,
-  Square,
-  Zap,
-} from "lucide-react";
+import { AlertTriangle, Check, Copy, Loader2, RotateCcw, Share2, Square } from "lucide-react";
 import type { AnalysisModeKey, CachedResponse, FileResponse } from "@/lib/api-types";
 import { ApiClientError, apiGet, apiSend, streamNdjson } from "@/lib/api-client";
 import type { LineRange } from "@/lib/line-refs";
+import { languageLabel } from "@/lib/languages";
 import { Markdown } from "@/components/markdown";
+import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { GitHubIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip } from "@/components/ui/tooltip";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn, formatBytes, plural, timeAgo } from "@/lib/utils";
 import { useCopy } from "./use-copy";
 
-const MODES: { key: AnalysisModeKey; label: string; blurb: string }[] = [
-  { key: "OVERVIEW", label: "Overview", blurb: "A quick summary of what this file does and how it fits in." },
-  { key: "DEEP_DIVE", label: "Deep dive", blurb: "A section-by-section walkthrough of the logic and data flow." },
-  { key: "REVIEW", label: "Code review", blurb: "Bugs, security, performance and readability, ranked by severity." },
+const MODES: { key: AnalysisModeKey; label: string; blurb: string; tone: string }[] = [
+  { key: "OVERVIEW", label: "Overview", tone: "mode-overview", blurb: "A quick summary of what this file does and how it fits in." },
+  { key: "DEEP_DIVE", label: "Deep dive", tone: "mode-deep", blurb: "A section-by-section walkthrough of the logic and data flow." },
+  { key: "REVIEW", label: "Code review", tone: "mode-review", blurb: "Bugs, security, performance and readability, ranked by severity." },
 ];
 
+type Done = { status: "done"; content: string; id: string; cached: boolean; createdAt: string; model: string };
 type ModeState =
   | { status: "idle" }
-  | { status: "streaming"; content: string }
-  | { status: "done"; content: string; id: string; cached: boolean; createdAt: string; model: string }
-  | { status: "error"; code: string; message: string; content?: string };
+  /** `regenerating`: the previous result stays on screen until the first new text arrives. */
+  | { status: "streaming"; content: string; regenerating: boolean; prev?: Done }
+  | Done
+  | { status: "stopped"; content: string }
+  /** `content`/`prev`: the previous result stays visible under the notice. */
+  | { status: "error"; code: string; message: string; content?: string; prev?: Done };
 
 type Props = {
   owner: string;
   repo: string;
   gitRef: string;
+  path: string;
   file: FileResponse | null;
   fileLoading: boolean;
   signedIn: boolean;
   onLineClick: (range: LineRange) => void;
+  onRevealDir: (dir: string) => void;
 };
 
 const EMPTY: Record<AnalysisModeKey, ModeState> = {
@@ -54,13 +51,37 @@ const EMPTY: Record<AnalysisModeKey, ModeState> = {
   REVIEW: { status: "idle" },
 };
 
-export function AnalysisPanel({ owner, repo, gitRef, file, fileLoading, signedIn, onLineClick }: Props) {
+function statusText(state: ModeState, label: string) {
+  const lower = label.toLowerCase();
+  switch (state.status) {
+    case "streaming":
+      return state.regenerating ? "Regenerating…" : `Generating ${lower}…`;
+    case "done":
+      return `${label} ready`;
+    case "stopped":
+      return "Stopped";
+    case "error":
+      return state.code === "QUOTA_EXCEEDED" ? "Limit reached for today" : "Generation failed";
+    default:
+      return "";
+  }
+}
+
+/** The analysis document: file head, mode tabs, the reading itself and its colophon bar. */
+export function AnalysisPanel({ owner, repo, gitRef, path, file, fileLoading, signedIn, onLineClick, onRevealDir }: Props) {
   const [mode, setMode] = useState<AnalysisModeKey>("OVERVIEW");
   const [states, setStates] = useState<Record<AnalysisModeKey, ModeState>>(EMPTY);
   const [checkingCache, setCheckingCache] = useState(() => !!file && file.content != null);
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [sharing, setSharing] = useState(false);
   const controllers = useRef<Partial<Record<AnalysisModeKey, AbortController>>>({});
+  const statesRef = useRef(states);
+  const tabRefs = useRef<Partial<Record<AnalysisModeKey, HTMLButtonElement | null>>>({});
   const copy = useCopy();
+
+  useEffect(() => {
+    statesRef.current = states;
+  }, [states]);
 
   const setModeState = useCallback((m: AnalysisModeKey, s: ModeState) => {
     setStates((prev) => ({ ...prev, [m]: s }));
@@ -91,6 +112,16 @@ export function AnalysisPanel({ owner, repo, gitRef, file, fileLoading, signedIn
     return () => ctrl.abort();
   }, [file, owner, repo, gitRef]);
 
+  // Today's quota, for the "N left today" line under the Generate button.
+  useEffect(() => {
+    if (!signedIn || !file || file.content == null) return;
+    const ctrl = new AbortController();
+    apiGet<{ remaining: number }>("/api/me/usage", ctrl.signal)
+      .then((u) => setRemaining((r) => r ?? u.remaining))
+      .catch(() => undefined);
+    return () => ctrl.abort();
+  }, [signedIn, file]);
+
   useEffect(() => () => Object.values(controllers.current).forEach((c) => c?.abort()), []);
 
   const analyze = useCallback(
@@ -100,13 +131,20 @@ export function AnalysisPanel({ owner, repo, gitRef, file, fileLoading, signedIn
       const ctrl = new AbortController();
       controllers.current[m] = ctrl;
 
+      const before = statesRef.current[m];
+      const prev = before.status === "done" ? before : before.status === "error" ? before.prev : undefined;
+
       let content = "";
       let frame = 0;
       const flush = () => {
         frame = 0;
-        setModeState(m, { status: "streaming", content });
+        if (ctrl.signal.aborted) return;
+        setModeState(m, { status: "streaming", content, regenerating: false, prev });
       };
-      setModeState(m, { status: "streaming", content: "" });
+      setModeState(m, { status: "streaming", content: prev?.content ?? "", regenerating: !!prev, prev });
+
+      const fail = (code: string, message: string) =>
+        setModeState(m, { status: "error", code, message, content: content || prev?.content, prev });
 
       try {
         let cached = false;
@@ -130,23 +168,19 @@ export function AnalysisPanel({ owner, repo, gitRef, file, fileLoading, signedIn
             return;
           } else if (event.type === "error") {
             if (frame) cancelAnimationFrame(frame);
-            setModeState(m, { status: "error", code: event.code, message: event.message });
+            if (event.code === "QUOTA_EXCEEDED") setRemaining(0);
+            fail(event.code, event.message);
             return;
           }
         }
         if (frame) cancelAnimationFrame(frame);
-        if (!ctrl.signal.aborted) {
-          setModeState(m, { status: "error", code: "INTERRUPTED", message: "The connection was interrupted. Please try again." });
-        }
+        if (!ctrl.signal.aborted) fail("INTERRUPTED", "The connection was interrupted. Please try again.");
       } catch (err) {
         if (frame) cancelAnimationFrame(frame);
         if (ctrl.signal.aborted) return;
         const e = err instanceof ApiClientError ? err : null;
-        setModeState(m, {
-          status: "error",
-          code: e?.code ?? "NETWORK",
-          message: e?.message ?? "Network error. Check your connection and try again.",
-        });
+        if (e?.code === "QUOTA_EXCEEDED") setRemaining(0);
+        fail(e?.code ?? "NETWORK", e?.message ?? "Network error. Check your connection and try again.");
       } finally {
         if (controllers.current[m] === ctrl) delete controllers.current[m];
       }
@@ -156,188 +190,295 @@ export function AnalysisPanel({ owner, repo, gitRef, file, fileLoading, signedIn
 
   function stop(m: AnalysisModeKey) {
     controllers.current[m]?.abort();
-    setModeState(m, { status: "idle" });
+    const s = statesRef.current[m];
+    if (s.status !== "streaming") return;
+    // Stopping a regenerate before any new text arrived simply keeps the previous result.
+    if (s.regenerating && s.prev) setModeState(m, s.prev);
+    else if (s.content) setModeState(m, { status: "stopped", content: s.content });
+    else setModeState(m, { status: "idle" });
   }
 
   async function share(id: string) {
+    setSharing(true);
     try {
       const { url } = await apiSend<{ url: string }>(`/api/analyses/${id}/share`, "POST");
       await navigator.clipboard.writeText(url).catch(() => undefined);
-      toast.success("Share link copied", { description: url });
+      toast.success("Share link copied", { description: <span className="font-mono">{url}</span> });
     } catch (err) {
       toast.error(err instanceof ApiClientError ? err.message : "Couldn't create a share link.");
+    } finally {
+      setSharing(false);
     }
+  }
+
+  function onTabKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    const i = MODES.findIndex((x) => x.key === mode);
+    let next = -1;
+    if (e.key === "ArrowRight") next = (i + 1) % MODES.length;
+    else if (e.key === "ArrowLeft") next = (i - 1 + MODES.length) % MODES.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = MODES.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    const key = MODES[next].key;
+    setMode(key);
+    tabRefs.current[key]?.focus();
   }
 
   const state = states[mode];
   const current = MODES.find((x) => x.key === mode)!;
-  const streaming = state.status === "streaming";
-  const analyzable = file && file.content != null;
+  const analyzable = !!file && file.content != null;
+  const shownDone: Done | undefined = state.status === "done" ? state : state.status === "error" ? state.prev : undefined;
+  const bodyContent =
+    state.status === "streaming" || state.status === "stopped" || state.status === "done" ? state.content : state.status === "error" ? state.content : undefined;
+  const quotaOut = remaining === 0;
+
+  const segments = path.split("/");
+  const name = segments[segments.length - 1];
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border px-2" role="tablist" aria-label="Analysis mode">
-        {MODES.map((m) => {
-          const s = states[m.key];
-          return (
-            <button
-              key={m.key}
-              role="tab"
-              aria-selected={mode === m.key}
-              onClick={() => setMode(m.key)}
-              className={cn(
-                "relative flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition-colors",
-                mode === m.key ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {m.label}
-              {s.status === "streaming" ? <Loader2 className="size-3 animate-spin text-primary" /> : null}
-              {s.status === "done" ? <span className="size-1.5 rounded-full bg-success" aria-label="ready" /> : null}
-            </button>
-          );
-        })}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <article className="px-4 pt-5 pb-10 lg:px-10 lg:pt-8">
+          <header>
+            {segments.length > 1 ? (
+              <nav aria-label="File path" className="flex flex-wrap items-center font-mono text-[13px] leading-5 text-label">
+                {segments.slice(0, -1).map((seg, i) => {
+                  const dir = segments.slice(0, i + 1).join("/");
+                  return (
+                    <span key={dir} className="flex items-center">
+                      <button onClick={() => onRevealDir(dir)} className="cursor-pointer break-all hover:text-ink hover:underline">
+                        {seg}
+                      </button>
+                      <span className="px-1 text-ink-muted">/</span>
+                    </span>
+                  );
+                })}
+              </nav>
+            ) : null}
+            <h1 className="doc-title mt-1">{name}</h1>
+            <p className="caption mt-2">
+              {file ? (
+                <>
+                  {languageLabel(file.language)}
+                  {file.content != null ? ` · ${plural(file.lineCount, "line")}` : ""} · {formatBytes(file.size)} ·{" "}
+                </>
+              ) : null}
+              <span className="font-mono normal-case tracking-normal">{gitRef}</span>
+            </p>
+            <hr className="accent-rule" />
+          </header>
+
+          {analyzable ? (
+            <div role="tablist" aria-label="Analysis mode" className="tab-strip mb-6" onKeyDown={onTabKey}>
+              {MODES.map((m, i) => {
+                const s = states[m.key];
+                const selected = mode === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    ref={(el) => {
+                      tabRefs.current[m.key] = el;
+                    }}
+                    id={`analysis-tab-${m.key}`}
+                    role="tab"
+                    aria-selected={selected}
+                    aria-controls={`analysis-panel-${m.key}`}
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => setMode(m.key)}
+                    className={cn("tab-btn first:pl-0", m.tone)}
+                  >
+                    <span aria-hidden className="mode-chip">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    {m.label}
+                    {s.status === "streaming" ? (
+                      <span aria-hidden className="status-mark-live size-1.5 bg-orange" />
+                    ) : s.status === "done" ? (
+                      <span aria-hidden className="size-1.5 bg-ink" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          <div
+            role={analyzable ? "tabpanel" : undefined}
+            id={analyzable ? `analysis-panel-${mode}` : undefined}
+            aria-labelledby={analyzable ? `analysis-tab-${mode}` : undefined}
+          >
+            {!file ? (
+              fileLoading ? (
+                <DocSkeleton />
+              ) : (
+                <p className="meta">The file didn&apos;t load. Retry from the code panel.</p>
+              )
+            ) : !analyzable ? (
+              <EmptyState title="This file can't be analyzed" className="pt-0">
+                Only text files can be analyzed.
+              </EmptyState>
+            ) : state.status === "idle" ? (
+              checkingCache ? (
+                <DocSkeleton />
+              ) : (
+                <div className="max-w-[60ch]">
+                  <p className="text-ink-muted">{current.blurb}</p>
+                  {signedIn ? (
+                    <>
+                      <Button className="mt-5" disabled={quotaOut} onClick={() => analyze(mode)}>
+                        Generate {current.label.toLowerCase()}
+                      </Button>
+                      {quotaOut ? (
+                        <p className="meta mt-3">Resets at midnight UTC</p>
+                      ) : remaining !== null ? (
+                        <p className="meta mt-3">{remaining} left today · Each new analysis uses 1</p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <Button className="mt-5" onClick={() => signIn("github", { callbackUrl: window.location.href })}>
+                        <GitHubIcon /> Sign in to analyze
+                      </Button>
+                      <p className="meta mt-3">Free, with read-only access to your public GitHub profile.</p>
+                    </>
+                  )}
+                </div>
+              )
+            ) : (
+              <>
+                {state.status === "error" ? <ErrorNotice state={state} onRetry={() => analyze(mode)} /> : null}
+                {state.status === "stopped" ? (
+                  <p className="mb-6 border-l-2 border-ink bg-paper-raised px-4 py-3 font-semibold">Stopped. Not saved, not charged.</p>
+                ) : null}
+                {bodyContent ? (
+                  <Markdown
+                    content={bodyContent}
+                    onLineClick={onLineClick}
+                    streaming={state.status === "streaming" && !state.regenerating}
+                  />
+                ) : null}
+              </>
+            )}
+          </div>
+        </article>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        {!file ? (
-          fileLoading ? (
-            <PanelSkeleton />
-          ) : (
-            <EmptyState icon={<Sparkles className="size-5" />} title="Pick a file to analyze">
-              Choose a file from the tree, then generate an overview, a deep dive or a code review.
-            </EmptyState>
-          )
-        ) : !analyzable ? (
-          <EmptyState icon={<AlertTriangle className="size-5" />} title="This file can't be analyzed">
-            Only text files can be analyzed.
-          </EmptyState>
-        ) : state.status === "idle" ? (
-          checkingCache ? (
-            <PanelSkeleton />
-          ) : (
-            <EmptyState icon={<Sparkles className="size-5" />} title={current.label}>
-              <p>{current.blurb}</p>
+      {analyzable ? (
+        <Colophon
+          visible={state.status !== "idle" && !(state.status === "error" && !shownDone)}
+          status={<p role="status" aria-live="polite" className={cn("meta", state.status !== "streaming" && "sr-only")}>{statusText(state, current.label)}</p>}
+        >
+          {state.status === "streaming" ? (
+            <Button variant="secondary" size="sm" className="ml-auto" onClick={() => stop(mode)}>
+              <Square className="size-3 fill-current" aria-hidden /> Stop
+            </Button>
+          ) : state.status === "stopped" ? (
+            <div className="ml-auto flex items-center gap-1">
+              <CopyButton copied={copy.copied} onCopy={() => copy.copy(state.content)} />
               {signedIn ? (
-                <Button className="mt-5" onClick={() => analyze(mode)}>
-                  <Sparkles /> Generate {current.label.toLowerCase()}
-                </Button>
-              ) : (
-                <>
-                  <Button className="mt-5" onClick={() => signIn("github", { callbackUrl: window.location.href })}>
-                    <GitHubIcon /> Sign in to analyze
-                  </Button>
-                  <p className="mt-3 text-xs">Free, with read-only access to your public GitHub profile.</p>
-                </>
-              )}
-            </EmptyState>
-          )
-        ) : state.status === "error" ? (
-          <div className="p-5">
-            <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-                <div>
-                  <p className="font-medium text-destructive">
-                    {state.code === "QUOTA_EXCEEDED" ? "Daily limit reached" : "Analysis failed"}
-                  </p>
-                  <p className="mt-1 text-muted-foreground">{state.message}</p>
-                </div>
-              </div>
-              {state.code === "UNAUTHORIZED" ? (
-                <Button size="sm" className="mt-4" onClick={() => signIn("github", { callbackUrl: window.location.href })}>
-                  <GitHubIcon /> Sign in again
-                </Button>
-              ) : state.code !== "QUOTA_EXCEEDED" && state.code !== "NOT_ANALYZABLE" && state.code !== "REFUSED" ? (
-                <Button size="sm" variant="outline" className="mt-4" onClick={() => analyze(mode)}>
-                  <RotateCcw /> Try again
+                <Button variant="ghost" size="sm" onClick={() => analyze(mode)}>
+                  Generate again
                 </Button>
               ) : null}
             </div>
-          </div>
-        ) : (
-          <div className="p-5">
-            {streaming && !state.content ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin text-primary" /> Reading the file and thinking…
-              </div>
-            ) : (
-              <Markdown content={state.content} onLineClick={onLineClick} streaming={streaming} />
-            )}
-          </div>
-        )}
-      </div>
-
-      {analyzable && (state.status === "streaming" || state.status === "done") ? (
-        <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-          {state.status === "streaming" ? (
+          ) : shownDone ? (
             <>
-              <Loader2 className="size-3.5 animate-spin text-primary" /> Generating…
-              <Button size="sm" variant="outline" className="ml-auto" onClick={() => stop(mode)}>
-                <Square className="size-3 fill-current" /> Stop
-              </Button>
-            </>
-          ) : (
-            <>
-              {state.cached ? (
-                <Tooltip content="Loaded instantly from a previous analysis of this exact file version">
-                  <Badge variant="success">
-                    <Zap /> Cached
-                  </Badge>
-                </Tooltip>
-              ) : (
-                <Badge variant="default">
-                  <Check /> New
+              {shownDone.cached ? (
+                <Badge variant="cached" title="Loaded from a previous analysis of this exact file version">
+                  Cached
                 </Badge>
+              ) : (
+                <Badge variant="new">New</Badge>
               )}
-              <span className="truncate">{timeAgo(state.createdAt)}</span>
-              {remaining !== null ? <span className="hidden sm:inline">· {remaining} left today</span> : null}
+              <span className="meta">{timeAgo(shownDone.createdAt)}</span>
+              {remaining !== null ? <span className="meta">· {remaining} left today</span> : null}
               <div className="ml-auto flex items-center gap-1">
-                <Tooltip content={copy.copied ? "Copied" : "Copy as Markdown"}>
-                  <Button variant="ghost" size="icon-sm" aria-label="Copy analysis as Markdown" onClick={() => copy.copy(state.content)}>
-                    {copy.copied ? <Check className="text-success" /> : <Copy />}
-                  </Button>
-                </Tooltip>
+                <CopyButton copied={copy.copied} onCopy={() => copy.copy(shownDone.content)} />
                 {signedIn ? (
                   <>
-                    <Tooltip content="Create a share link">
-                      <Button variant="ghost" size="icon-sm" aria-label="Share analysis" onClick={() => share(state.id)}>
-                        <Share2 />
-                      </Button>
-                    </Tooltip>
-                    <Tooltip content="Regenerate (uses one analysis from your daily quota)">
-                      <Button variant="ghost" size="icon-sm" aria-label="Regenerate analysis" onClick={() => analyze(mode, true)}>
-                        <RotateCcw />
-                      </Button>
-                    </Tooltip>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Share analysis"
+                      disabled={sharing}
+                      aria-busy={sharing || undefined}
+                      onClick={() => share(shownDone.id)}
+                    >
+                      {sharing ? <Loader2 className="motion-safe:animate-spin" aria-hidden /> : <Share2 aria-hidden />} Share
+                    </Button>
+                    {/* Never disabled for quota: a Regenerate at 0 must reach the server and show the limit notice. */}
+                    <Button variant="ghost" size="sm" aria-label="Regenerate analysis" onClick={() => analyze(mode, true)}>
+                      <RotateCcw aria-hidden /> Regenerate
+                    </Button>
                   </>
                 ) : null}
               </div>
             </>
-          )}
-        </div>
+          ) : null}
+        </Colophon>
       ) : null}
     </div>
   );
 }
 
-function EmptyState({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function Colophon({ visible, status, children }: { visible: boolean; status: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8 py-12 text-center">
-      <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">{icon}</div>
-      <h3 className="mt-4 font-semibold">{title}</h3>
-      <div className="mt-1.5 max-w-xs text-sm text-muted-foreground">{children}</div>
+    <div
+      className={cn(
+        "flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-sheet-edge bg-sheet px-4 py-1.5",
+        !visible && "sr-only",
+      )}
+    >
+      {status}
+      {visible ? children : null}
     </div>
   );
 }
 
-function PanelSkeleton() {
+function CopyButton({ copied, onCopy }: { copied: boolean; onCopy: () => void }) {
   return (
-    <div className="space-y-3 p-5" aria-busy="true">
-      <Skeleton className="h-4 w-1/3" />
+    <Button variant="ghost" size="sm" aria-label="Copy analysis as Markdown" onClick={onCopy}>
+      {copied ? <Check aria-hidden /> : <Copy aria-hidden />} {copied ? "Copied" : "Copy"}
+    </Button>
+  );
+}
+
+function ErrorNotice({ state, onRetry }: { state: Extract<ModeState, { status: "error" }>; onRetry: () => void }) {
+  const quota = state.code === "QUOTA_EXCEEDED";
+  const busy = state.code === "MODEL_BUSY";
+  const title = quota ? "Daily limit reached" : busy ? "The model is busy" : "Analysis failed";
+  let message = state.message;
+  if (quota && !/midnight UTC/i.test(message)) message = `${message.replace(/\.?$/, ".")} It resets at midnight UTC.`;
+  if (busy && !/not charged/i.test(message)) message = `${message.replace(/\.?$/, ".")} Your quota was not charged.`;
+  return (
+    <div role="alert" className="mb-6 max-w-[68ch] border-l-2 border-danger bg-paper-raised px-4 py-3">
+      <p className="flex items-center gap-2 font-bold text-danger">
+        <AlertTriangle className="size-4 shrink-0" aria-hidden />
+        {title}
+      </p>
+      <p className="mt-1 text-ink">{message}</p>
+      {state.code === "UNAUTHORIZED" ? (
+        <Button size="sm" variant="secondary" className="mt-3" onClick={() => signIn("github", { callbackUrl: window.location.href })}>
+          <GitHubIcon /> Sign in again
+        </Button>
+      ) : !quota && state.code !== "NOT_ANALYZABLE" && state.code !== "REFUSED" ? (
+        <Button size="sm" variant="secondary" className="mt-3" onClick={onRetry}>
+          <RotateCcw aria-hidden /> Try again
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function DocSkeleton() {
+  return (
+    <div className="max-w-[60ch] space-y-3" aria-busy="true">
+      <Skeleton className="h-3 w-1/4" />
       <Skeleton className="h-3 w-full" />
       <Skeleton className="h-3 w-11/12" />
       <Skeleton className="h-3 w-4/5" />
-      <Skeleton className="mt-6 h-4 w-1/4" />
+      <Skeleton className="mt-8 h-3 w-1/5" />
       <Skeleton className="h-3 w-full" />
       <Skeleton className="h-3 w-3/4" />
     </div>
