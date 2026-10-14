@@ -17,10 +17,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatBytes, plural, timeAgo } from "@/lib/utils";
 import { useCopy } from "./use-copy";
 
-const MODES: { key: AnalysisModeKey; label: string; blurb: string }[] = [
-  { key: "OVERVIEW", label: "Overview", blurb: "A quick summary of what this file does and how it fits in." },
-  { key: "DEEP_DIVE", label: "Deep dive", blurb: "A section-by-section walkthrough of the logic and data flow." },
-  { key: "REVIEW", label: "Code review", blurb: "Bugs, security, performance and readability, ranked by severity." },
+const MODES: { key: AnalysisModeKey; label: string; blurb: string; tone: string }[] = [
+  { key: "OVERVIEW", label: "Overview", tone: "mode-overview", blurb: "A quick summary of what this file does and how it fits in." },
+  { key: "DEEP_DIVE", label: "Deep dive", tone: "mode-deep", blurb: "A section-by-section walkthrough of the logic and data flow." },
+  { key: "REVIEW", label: "Code review", tone: "mode-review", blurb: "Bugs, security, performance and readability, ranked by severity." },
 ];
 
 type Done = { status: "done"; content: string; id: string; cached: boolean; createdAt: string; model: string };
@@ -286,9 +286,9 @@ export function AnalysisPanel({ owner, repo, gitRef, path, file, fileLoading, si
                     aria-controls={`analysis-panel-${m.key}`}
                     tabIndex={selected ? 0 : -1}
                     onClick={() => setMode(m.key)}
-                    className="tab-btn first:pl-0"
+                    className={cn("tab-btn first:pl-0", m.tone)}
                   >
-                    <span aria-hidden className="font-mono text-[13px] font-normal tracking-normal text-label">
+                    <span aria-hidden className="mode-chip">
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     {m.label}

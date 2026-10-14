@@ -34,6 +34,7 @@ type Item = {
 };
 
 const MODE_LABEL: Record<AnalysisModeKey, string> = { OVERVIEW: "Overview", DEEP_DIVE: "Deep dive", REVIEW: "Code review" };
+const MODE_TONE: Record<AnalysisModeKey, string> = { OVERVIEW: "marker-orange", DEEP_DIVE: "marker-teal", REVIEW: "marker-jungle" };
 const UNDO_MS = 5000;
 
 async function fetchPage(q: string, after: string | null, signal?: AbortSignal) {
@@ -227,7 +228,10 @@ export function HistoryList() {
                     </Link>
                     <p className="mt-1 line-clamp-2 text-[15px] leading-[22px] text-ink-muted">{item.preview}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="caption">{MODE_LABEL[item.mode]}</span>
+                      <span className="caption inline-flex items-center gap-1.5">
+                        <span aria-hidden className={`swatch ${MODE_TONE[item.mode]}`} />
+                        {MODE_LABEL[item.mode]}
+                      </span>
                       {item.shareSlug ? <Badge variant="shared">Shared</Badge> : null}
                       <span className="meta">{timeAgo(item.updatedAt)}</span>
                     </div>

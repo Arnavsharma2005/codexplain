@@ -21,7 +21,7 @@ export async function Specimen() {
   return (
     <section className="section-ruled" aria-labelledby="specimen-label">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-        <h2 id="specimen-label" className="section-label">
+        <h2 id="specimen-label" className="section-label marker-teal">
           Specimen
         </h2>
         <p className="caption mb-3">
@@ -58,9 +58,12 @@ export async function Specimen() {
             </ReactMarkdown>
           </div>
         </div>
-        <div className="on-plate min-w-0 bg-plate text-plate-fg">
+        <div className="on-plate min-w-0 border-t-2 border-ink bg-plate text-plate-fg lg:border-t-0 lg:border-l-2">
           <div className="flex h-11 items-center gap-3 border-b border-plate-rule px-4">
-            <span className="text-[12px] font-bold uppercase tracking-[.14em] text-plate-label">Code</span>
+            <span className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-plate-label">
+              <span aria-hidden className="swatch marker-teal" />
+              Code
+            </span>
             <span className="truncate font-mono text-[13px]">{name}</span>
             <span className="ml-auto shrink-0 text-[12px] font-bold uppercase tracking-[.12em] text-plate-muted">{lines} lines</span>
           </div>

@@ -34,9 +34,9 @@ export function SnapSection({ label, children }: { label: string; children: Reac
 
   return (
     <section className="section-ruled">
-      <h2 className="section-label flex items-center justify-between gap-4">
+      <h2 className="section-label flex items-center gap-x-0">
         {label}
-        <span className="snap-arrows flex gap-2">
+        <span className="snap-arrows ml-auto flex gap-2 pl-4">
           <button type="button" className={pill} aria-label="Earlier" disabled={edges.start} onClick={() => scrollBy(-1)}>
             ←
           </button>

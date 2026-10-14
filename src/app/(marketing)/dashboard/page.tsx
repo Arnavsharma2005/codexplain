@@ -45,7 +45,10 @@ export default async function DashboardPage() {
       <div className="dash-grid mt-10">
         <section aria-label="Usage" className="dash-ledger grid border-t-2 border-b border-ink border-b-hairline sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <div className="py-3 sm:pr-6">
-            <p className="caption">Analyses left today</p>
+            <p className="caption flex items-center gap-1.5">
+              <span aria-hidden className="swatch marker-orange" />
+              Analyses left today
+            </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
               <p className="text-[40px] font-bold leading-10 tabular">
                 {usage.remaining}
@@ -66,11 +69,17 @@ export default async function DashboardPage() {
           </div>
           <div className="grid grid-cols-2 border-t border-hairline sm:contents">
             <div className="py-3 sm:border-l sm:border-hairline sm:px-6">
-              <p className="caption">In history</p>
+              <p className="caption flex items-center gap-1.5">
+              <span aria-hidden className="swatch marker-moon" />
+              In history
+            </p>
               <p className="mt-1 text-[40px] font-bold leading-10 tabular">{analysisCount}</p>
             </div>
             <div className="border-l border-hairline py-3 pl-4 sm:px-6">
-              <p className="caption">Saved</p>
+              <p className="caption flex items-center gap-1.5">
+              <span aria-hidden className="swatch marker-teal" />
+              Saved
+            </p>
               <p className="mt-1 text-[40px] font-bold leading-10 tabular">{saved.length}</p>
             </div>
           </div>
@@ -81,8 +90,8 @@ export default async function DashboardPage() {
           <HistoryList />
         </section>
 
-        <RepoList className="dash-saved" title="Saved" empty="Save repositories from the workspace to pin them here." items={saved} />
-        <RepoList className="dash-recent" title="Recently viewed" empty="Repositories you open will show up here." items={recent} />
+        <RepoList className="dash-saved" marker="marker-teal" title="Saved" empty="Save repositories from the workspace to pin them here." items={saved} />
+        <RepoList className="dash-recent" marker="marker-jungle" title="Recently viewed" empty="Repositories you open will show up here." items={recent} />
       </div>
     </div>
   );
@@ -94,10 +103,10 @@ type VisitWithRepo = {
   repository: { owner: string; name: string; description: string | null; stars: number; language: string | null };
 };
 
-function RepoList({ title, empty, items, className }: { title: string; empty: string; items: VisitWithRepo[]; className?: string }) {
+function RepoList({ title, empty, items, className, marker }: { title: string; empty: string; items: VisitWithRepo[]; className?: string; marker: string }) {
   return (
     <section className={className}>
-      <h2 className="section-label">{title}</h2>
+      <h2 className={`section-label ${marker}`}>{title}</h2>
       {items.length === 0 ? (
         <p className="meta border-t-2 border-ink pt-3">{empty}</p>
       ) : (

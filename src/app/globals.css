@@ -14,36 +14,50 @@
 :root {
   --paper: #f2e5c3; --paper-raised: #faf3e0; --paper-sunk: #e9d9b0;
   --ink: #0e1c3a; --ink-muted: #4d5468; --hairline: #c0b9a5;
-  --orange: #dd7f45; --on-orange: #0e1c3a; --label: #8f4520; --focus: #0e1c3a;
+  --orange: #f07a2e; --on-orange: #0e1c3a; --label: #8f4520; --focus: #0e1c3a;
   --danger: #9b2a1a; --success: #2d6a3a; --warning: #7a4d00;
-  --ref-hover: #ecc69d; --selection: #ebc197;
+  --ref-hover: #f7cfa6; --selection: #f6d98a;
   /* Selected tree / filter row bar: ink on paper (orange fails 1.4.11 on sunk paper), orange at night. */
   --row-bar: #0e1c3a;
 
-  --plate: #0e1c3a; --plate-border: transparent; --plate-fg: #f2e5c3; --plate-muted: #8a93a8;
-  --plate-label: #dd7f45; --plate-rule: #2e384d; --plate-hover: #1b2c51; --plate-hl: #37303c;
-  --plate-selection: #3b4f78; --plate-focus: #dd7f45;
+  /* Poster accents (wavz night posters). Fills carry text only in their on-* colour;
+     the *-ink variants are the text versions that pass 4.5:1 on paper. */
+  --teal: #2f7f86; --on-teal: #fffdf7; --teal-ink: #1f5f66;
+  --moon: #f2c14e; --on-moon: #0e1c3a; --moon-ink: #6e4e00;
+  --jungle: #3d7a45; --on-jungle: #fffdf7; --jungle-ink: #2f6136;
+
+  /* The code sheet: a light, crisp panel in both themes. */
+  --plate: #fffdf7; --plate-border: #0e1c3a; --plate-fg: #0e1c3a; --plate-muted: #736956;
+  --plate-label: #a33d12; --plate-rule: #ddd2b8; --plate-hover: #f3ead2; --plate-hl: #fcecb8;
+  --plate-selection: #f6d98a; --plate-focus: #0e1c3a; --plate-bar: #f07a2e;
 
   --shiki-background: transparent;
-  --shiki-foreground: #f2e5c3;
-  --shiki-token-keyword: #e8905a;
-  --shiki-token-string: #b9cc8e; --shiki-token-string-expression: #b9cc8e;
-  --shiki-token-function: #e9bf5c; --shiki-token-constant: #86c5d0;
-  --shiki-token-parameter: #f2b38b; --shiki-token-comment: #959fb4;
-  --shiki-token-punctuation: #b8b19c; --shiki-token-link: #86c5d0;
-  --shiki-token-inserted: #a3d394; --shiki-token-deleted: #f08c73; --shiki-token-changed: #e9bf5c;
+  --shiki-foreground: #0e1c3a;
+  --shiki-token-keyword: #a33d12;
+  --shiki-token-string: #3a6614; --shiki-token-string-expression: #3a6614;
+  --shiki-token-function: #0a6169; --shiki-token-constant: #1f4a86;
+  --shiki-token-parameter: #7c2f6a; --shiki-token-comment: #685e4c;
+  --shiki-token-punctuation: #4d5468; --shiki-token-link: #1f4a86;
+  --shiki-token-inserted: #2f6b3d; --shiki-token-deleted: #a3261a; --shiki-token-changed: #7a5200;
+
+  /* Toast: an inverse ink block. */
+  --toast-bg: #0e1c3a; --toast-fg: #f2e5c3; --toast-hover: #22335a; --toast-icon: #f07a2e; --toast-focus: #f07a2e;
 
   --dur-fast: 120ms; --dur-base: 200ms; --ease-out: cubic-bezier(.2,.8,.2,1); --ease-draw: cubic-bezier(.6,0,.2,1);
 }
 
+/* Night: a warm brown desk (wavz night posters) with cream ink. The code sheet stays light. */
 .dark {
-  --paper: #0e1c3a; --paper-raised: #15274a; --paper-sunk: #1b2d52;
-  --ink: #f2e5c3; --ink-muted: #b4ac97; --hairline: #3c4455;
-  --label: #e39a68; --focus: #dd7f45;
-  --danger: #f08c73; --success: #93c99d; --warning: #e9bf5c;
-  --ref-hover: #42353d; --selection: #563f3e;
-  --row-bar: #dd7f45;
-  --plate: #081329; --plate-border: #3c4455; --plate-rule: #29303f; --plate-hover: #14223f; --plate-hl: #33292f;
+  --paper: #2a1d15; --paper-raised: #35261c; --paper-sunk: #3f2d20;
+  --ink: #f2e5c3; --ink-muted: #cdbd9c; --hairline: #5c4636;
+  --label: #eda06a; --focus: #f07a2e;
+  --danger: #f39c84; --success: #9ccf86; --warning: #f2c14e;
+  --ref-hover: #5e3c26; --selection: #6b4630;
+  --row-bar: #f07a2e;
+  --on-orange: #2a1d15;
+  --teal-ink: #8fcbcf; --moon-ink: #f2c14e; --jungle-ink: #9ccf86;
+  --plate: #f9f3e3; --plate-border: #120c08; --plate-hover: #efe5cb; --plate-rule: #d8ccb0;
+  --toast-bg: #f2e5c3; --toast-fg: #2a1d15; --toast-hover: #e2d2a8; --toast-icon: #a33d12; --toast-focus: #2a1d15;
 }
 
 @theme inline {
@@ -54,6 +68,9 @@
   --color-plate: var(--plate); --color-plate-fg: var(--plate-fg); --color-plate-muted: var(--plate-muted);
   --color-plate-label: var(--plate-label); --color-plate-rule: var(--plate-rule); --color-plate-hover: var(--plate-hover);
   --color-plate-border: var(--plate-border);
+  --color-teal: var(--teal); --color-on-teal: var(--on-teal); --color-teal-ink: var(--teal-ink);
+  --color-moon: var(--moon); --color-on-moon: var(--on-moon); --color-moon-ink: var(--moon-ink);
+  --color-jungle: var(--jungle); --color-on-jungle: var(--on-jungle); --color-jungle-ink: var(--jungle-ink);
   --color-transparent: transparent; --color-current: currentColor;
 
   --font-sans: var(--font-sarabun), "Bahnschrift", "DIN Alternate", "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
@@ -68,7 +85,7 @@
     background-size: 128px;
     scrollbar-gutter: stable;
   }
-  html.dark { color-scheme: dark; background-image: url("./_assets/grain-night.png"); }
+  html.dark { color-scheme: dark; }
   @media (min-resolution: 2dppx) { html { background-size: 64px; } }
   @media print, (forced-colors: active) { html, html.dark { background-image: none; } }
   html:has(.workspace-root) { scrollbar-gutter: auto; --toast-bottom: 62px; }
@@ -117,6 +134,12 @@
 
 /* ---------- Labels and captions ---------- */
 .section-label { font: 700 15px/20px var(--font-sans); text-transform: uppercase; letter-spacing: .14em; color: var(--label); margin: 0 0 12px; }
+/* Poster-colour marker before each section label; pick the colour with a marker-* class on the label. */
+.section-label::before { content: ""; display: inline-block; flex-shrink: 0; width: 12px; height: 12px; margin-right: 10px; vertical-align: 0; background: var(--marker, var(--orange)); }
+.marker-orange { --marker: var(--orange); } .marker-teal { --marker: var(--teal); }
+.marker-moon { --marker: var(--moon); } .marker-jungle { --marker: var(--jungle); }
+/* Small solid mode/colour tag, e.g. the mode name in history rows. */
+.swatch { display: inline-block; width: 10px; height: 10px; flex-shrink: 0; background: var(--marker, var(--orange)); }
 @media (max-width: 639px) { .section-label { font-size: 13px; line-height: 18px; } }
 .section-ruled { border-top: 2px solid var(--ink); padding-top: 12px; }
 .caption { font: 700 12px/16px var(--font-sans); text-transform: uppercase; letter-spacing: .12em; color: var(--label); font-variant-numeric: tabular-nums; }
@@ -147,11 +170,13 @@
 
 /* ---------- Toast (sonner, unstyled) ---------- */
 .cx-toast {
-  width: min(430px, calc(100vw - 24px)); background: var(--plate); color: var(--plate-fg);
-  border: 1px solid var(--plate-border); padding: 14px 16px; display: flex; align-items: flex-start; gap: 12px;
+  --plate: var(--toast-bg); --plate-fg: var(--toast-fg); --plate-hover: var(--toast-hover); --plate-focus: var(--toast-focus);
+  --plate-selection: var(--selection);
+  width: min(430px, calc(100vw - 24px)); background: var(--toast-bg); color: var(--toast-fg);
+  border: 2px solid var(--toast-bg); padding: 14px 16px; display: flex; align-items: flex-start; gap: 12px;
   font-family: var(--font-sans);
 }
-.cx-toast [data-icon] { display: flex; margin-top: 1px; color: var(--orange); }
+.cx-toast [data-icon] { display: flex; margin-top: 1px; color: var(--toast-icon); }
 .cx-toast [data-icon]:empty { display: none; }
 .cx-toast [data-content] { flex: 1; min-width: 0; }
 .cx-toast-title { font: 700 14px/18px var(--font-sans); text-transform: uppercase; letter-spacing: .1em; }
@@ -171,23 +196,23 @@
 
 /* ---------- Skeleton ---------- */
 .skeleton { background: var(--paper-sunk); animation: pulse-op 1.4s ease-in-out infinite alternate; }
-.on-plate .skeleton { background: rgba(242,229,195,.08); }
+.on-plate .skeleton { background: var(--plate-rule); }
 @keyframes pulse-op { from { opacity: .55; } to { opacity: 1; } }
 
 /* ---------- Code plate ---------- */
-.plate-scroll { scrollbar-width: thin; scrollbar-color: #8a93a8 transparent; }
+.plate-scroll { scrollbar-width: thin; scrollbar-color: var(--plate-muted) transparent; }
 .code-view pre.shiki { margin: 0; padding: 12px 0 32px; background: transparent !important; color: var(--plate-fg) !important;
-  font: 400 13px/21px var(--font-mono); counter-reset: line; min-width: max-content; tab-size: 4; }
+  font: 400 14px/22px var(--font-mono); counter-reset: line; min-width: max-content; tab-size: 4; }
 .code-view pre.shiki code { display: block; }
 .code-view .line { display: inline-block; min-width: 100%; padding-right: 24px; scroll-margin-top: 30vh; }
 .code-view .line::before {
   counter-increment: line; content: counter(line); display: inline-block; box-sizing: border-box;
-  width: 56px; margin-right: 16px; padding-right: 12px; border-left: 3px solid transparent;
+  width: 56px; margin-right: 16px; padding-right: 12px; border-left: 4px solid transparent;
   text-align: right; color: var(--plate-muted); font-variant-numeric: tabular-nums; user-select: none;
   position: sticky; left: 0; background: var(--plate);
 }
 .code-view .line.highlighted, .code-view .line.highlighted::before { background: var(--plate-hl); }
-.code-view .line.highlighted::before { color: var(--plate-fg); border-left-color: var(--orange); }
+.code-view .line.highlighted::before { color: var(--plate-fg); border-left-color: var(--plate-bar); }
 .code-view[data-wrap="true"] pre.shiki { min-width: 0; }
 .code-view[data-wrap="true"] .line { width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 72px; text-indent: -72px; }
 .code-view[data-wrap="true"] .line::before { text-indent: 0; position: static; }
@@ -207,7 +232,11 @@
   color: var(--label); margin-top: 40px; padding-top: 12px; border-top: 2px solid var(--ink); }
 :is(.prose-analysis, .specimen-doc, .legal-doc) h2:first-child { margin-top: 0; }
 :is(.prose-analysis, .specimen-doc, .legal-doc) h2::before { content: counter(sec, decimal-leading-zero); content: counter(sec, decimal-leading-zero) / "";
-  font: 400 13px/20px var(--font-mono); letter-spacing: 0; margin-right: 12px; }
+  display: inline-block; font: 400 13px/20px var(--font-mono); letter-spacing: 0; margin-right: 12px; padding: 0 6px;
+  background: var(--chip, var(--orange)); color: var(--on-chip, var(--on-orange)); }
+:is(.prose-analysis, .specimen-doc, .legal-doc) h2:nth-of-type(4n+2) { --chip: var(--teal); --on-chip: var(--on-teal); }
+:is(.prose-analysis, .specimen-doc, .legal-doc) h2:nth-of-type(4n+3) { --chip: var(--jungle); --on-chip: var(--on-jungle); }
+:is(.prose-analysis, .specimen-doc, .legal-doc) h2:nth-of-type(4n+4) { --chip: var(--moon); --on-chip: var(--on-moon); }
 :is(.prose-analysis, .specimen-doc, .legal-doc) h3 { font: 600 17px/24px var(--font-sans); margin-top: 24px; }
 :is(.prose-analysis, .specimen-doc, .legal-doc) strong { font-weight: 700; }
 :is(.prose-analysis, .specimen-doc, .legal-doc) ul { list-style: square; padding-left: 20px; }
@@ -218,7 +247,7 @@
 :is(.prose-analysis, .specimen-doc, .legal-doc) li > p { margin: 0; }
 :is(.prose-analysis, .specimen-doc, .legal-doc) a:not(.line-ref) { color: var(--ink); text-decoration: none; border-bottom: 2px solid var(--orange); }
 :is(.prose-analysis, .specimen-doc, .legal-doc) :not(pre) > code { font: 400 .88em/1 var(--font-mono); background: var(--paper-sunk); padding: 1px 4px; overflow-wrap: anywhere; }
-:is(.prose-analysis, .specimen-doc) pre { background: var(--plate); color: var(--plate-fg); border: 1px solid var(--plate-border);
+:is(.prose-analysis, .specimen-doc) pre { background: var(--plate); color: var(--plate-fg); border: 2px solid var(--plate-border);
   font: 400 13px/21px var(--font-mono); padding: 12px 16px; overflow-x: auto; scrollbar-width: thin; }
 .prose-analysis table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; font-size: 14px; }
 .prose-analysis th, .prose-analysis td { border-bottom: 1px solid var(--hairline); padding: 8px 12px 8px 0; text-align: left; vertical-align: top; }
@@ -240,7 +269,11 @@
   font: 600 14px/16px var(--font-sans); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-muted);
   border-bottom: 4px solid transparent; margin-bottom: -2px; transition: color var(--dur-fast); cursor: pointer; }
 .tab-btn:hover { color: var(--ink); }
-.tab-btn[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--orange); }
+.tab-btn[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--mode, var(--orange)); }
+.mode-chip { display: inline-block; padding: 0 5px; font: 400 13px/20px var(--font-mono); letter-spacing: 0; background: var(--mode, var(--orange)); color: var(--on-mode, var(--on-orange)); }
+.mode-overview { --mode: var(--orange); --on-mode: var(--on-orange); }
+.mode-deep { --mode: var(--teal); --on-mode: var(--on-teal); }
+.mode-review { --mode: var(--jungle); --on-mode: var(--on-jungle); }
 .tab-btn:focus-visible { outline-offset: -4px; }
 @media (max-width: 639px) { .tab-btn { font-size: 13px; padding: 0 10px; letter-spacing: .06em; } }
 
@@ -253,11 +286,29 @@
   .snap-arrows { display: none !important; }
 }
 @media (hover: none) { .snap-arrows { display: none !important; } }
-.plate-card .plate-face { transition: background-color var(--dur-fast); }
-.plate-card:hover .plate-face { background: var(--plate-hover); }
+.plate-card .plate-open { transition: background-color var(--dur-fast), color var(--dur-fast); }
+.plate-card:hover .plate-open { background: var(--moon); color: var(--on-moon); }
 .plate-card:hover .plate-name { text-decoration: underline 2px var(--orange); text-underline-offset: 4px; }
 .plate-card:focus-visible { outline: none; }
 .plate-card:focus-visible .plate-face { outline: 2px solid var(--focus); outline-offset: 4px; }
+
+/* Flat screen-printed poster: SVG scene plus a speck layer for the print texture. */
+.poster { position: relative; overflow: hidden; }
+.poster > svg { display: block; width: 100%; height: 100%; }
+.poster::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: url("./_assets/grain-night.png") repeat; background-size: 128px; opacity: .55; }
+@media (min-resolution: 2dppx) { .poster::after { background-size: 64px; } }
+@media print, (forced-colors: active) { .poster::after { display: none; } }
+
+/* Landing masthead with a poster beside the headline. */
+.masthead-hero { display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr); align-items: end; }
+.masthead-hero .masthead-blurb { margin-left: 0; text-align: left; max-width: 24em; margin-top: 20px; }
+.masthead-hero .display-title { font-size: clamp(36px, 5.6vw, 80px); }
+.masthead-poster { aspect-ratio: 5 / 2; }
+@media (min-width: 900px) {
+  .masthead-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 40px; }
+  .masthead-poster { aspect-ratio: 4 / 3; }
+}
 
 /* ---------- Workspace grid ---------- */
 .ws-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); min-height: 0; flex: 1; position: relative; overflow: hidden; }
@@ -267,6 +318,7 @@
   .ws-grid > [data-active="false"] { display: none !important; }
 }
 @media (min-width: 1024px) {
+  .ws-code { padding: 12px 12px 12px 0; }
   .ws-grid[data-layout="root"] { grid-template-columns: 264px minmax(0, 1fr); }
   .ws-grid[data-layout="root"] .ws-code { display: none; }
   .ws-grid[data-layout="file"] { grid-template-columns: 48px minmax(420px, 1fr) minmax(480px, 1.1fr); }

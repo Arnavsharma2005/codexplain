@@ -8,8 +8,8 @@ const badgeVariants = cva(
     variants: {
       variant: {
         new: "border-orange bg-orange text-on-orange",
-        cached: "border-ink text-ink",
-        shared: "border-label text-label",
+        cached: "border-moon bg-moon text-on-moon",
+        shared: "border-teal bg-teal text-on-teal",
         outline: "border-plate-muted text-plate-muted",
       },
     },

@@ -3,6 +3,7 @@ import { RepoSearch } from "@/components/repo-search";
 import { PlateCard } from "@/components/landing/plate-card";
 import { SnapSection } from "@/components/landing/snap-row";
 import { Specimen } from "@/components/landing/specimen";
+import { LighthouseScene } from "@/components/landing/posters";
 
 const EXAMPLES = [
   { owner: "vercel", repo: "next.js", note: "React framework" },
@@ -49,6 +50,7 @@ export default function LandingPage() {
         intro
         title="Understand any GitHub repository"
         blurb="Paste a GitHub link, open any file, and read what it does, with every claim tied to its lines."
+        poster={<LighthouseScene slice />}
         after={<RepoSearch autoFocus hint />}
       />
 
@@ -61,7 +63,7 @@ export default function LandingPage() {
       <Specimen />
 
       <section id="how" className="section-ruled scroll-mt-20">
-        <h2 className="section-label">How it reads</h2>
+        <h2 className="section-label marker-jungle">How it reads</h2>
         <ol className="ruled-list">
           {STEPS.map((s, i) => (
             <li key={s.title} className="grid gap-1 py-4 sm:grid-cols-[40px_minmax(0,220px)_minmax(0,1fr)] sm:gap-6">
@@ -76,7 +78,7 @@ export default function LandingPage() {
       </section>
 
       <section className="section-ruled">
-        <h2 className="section-label">Fine print</h2>
+        <h2 className="section-label marker-moon">Fine print</h2>
         <dl className="ruled-list">
           {FAQ.map((item) => (
             <div key={item.q} className="grid gap-1 py-4 sm:grid-cols-[minmax(0,320px)_minmax(0,1fr)] sm:gap-6">

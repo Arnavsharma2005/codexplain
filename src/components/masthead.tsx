@@ -10,11 +10,13 @@ type Props = {
   /** Rendered after the accent rule (e.g. the landing hero field). */
   after?: React.ReactNode;
   intro?: boolean;
+  /** A poster illustration set beside the title (landing only); the blurb then sits under the title. */
+  poster?: React.ReactNode;
   className?: string;
 };
 
 /** Big left-aligned title, short blurb on the right, then the single 6px orange rule. */
-export function Masthead({ title, blurb, variant = "page", numeral, children, after, intro, className }: Props) {
+export function Masthead({ title, blurb, variant = "page", numeral, children, after, intro, poster, className }: Props) {
   return (
     <header className={cn("masthead", className)}>
       {numeral ? (
@@ -31,10 +33,20 @@ export function Masthead({ title, blurb, variant = "page", numeral, children, af
         </>
       ) : (
         <>
-          <div className="masthead-row">
-            <h1 className={variant === "display" ? "display-title" : "page-title"}>{title}</h1>
-            {blurb ? <div className="masthead-blurb">{blurb}</div> : null}
-          </div>
+          {poster ? (
+            <div className="masthead-hero">
+              <div>
+                <h1 className={variant === "display" ? "display-title" : "page-title"}>{title}</h1>
+                {blurb ? <div className="masthead-blurb">{blurb}</div> : null}
+              </div>
+              <div className="masthead-poster poster">{poster}</div>
+            </div>
+          ) : (
+            <div className="masthead-row">
+              <h1 className={variant === "display" ? "display-title" : "page-title"}>{title}</h1>
+              {blurb ? <div className="masthead-blurb">{blurb}</div> : null}
+            </div>
+          )}
           {children}
           <hr className={cn("accent-rule", intro && "is-intro")} />
         </>

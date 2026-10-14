@@ -33,7 +33,7 @@ function readWrap(): boolean {
   return window.matchMedia("(max-width: 767px)").matches;
 }
 
-/** The navy code plate: header with file facts and actions, then the highlighted source. */
+/** The code sheet: a light panel with file facts and actions, then the highlighted source. */
 export function CodeViewer({ path, file, loading, error, highlight, onLineSelect, onRetry, onBackToAnalysis }: Props) {
   const codeRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -92,9 +92,12 @@ export function CodeViewer({ path, file, loading, error, highlight, onLineSelect
     : "Code";
 
   return (
-    <section className="on-plate flex h-full min-h-0 flex-col border border-plate-border bg-plate text-plate-fg">
+    <section className="on-plate flex h-full min-h-0 flex-col border-2 border-plate-border bg-plate text-plate-fg">
       <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-3 border-b border-plate-rule py-1.5 pr-2 pl-4">
-        <span className="text-[12px] font-bold uppercase tracking-[.14em] text-plate-label">Code</span>
+        <span className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-plate-label">
+          <span aria-hidden className="swatch marker-teal" />
+          Code
+        </span>
         <span className="min-w-0 max-w-[40%] truncate font-mono text-[13px]" title={path}>
           {name}
         </span>
@@ -193,7 +196,7 @@ function CodeSkeleton() {
   return (
     <div className="pt-3" aria-busy="true" aria-label="Loading file">
       {widths.map((w, i) => (
-        <div key={i} className="flex h-[21px] items-center">
+        <div key={i} className="flex h-[22px] items-center">
           <div className="flex w-14 justify-end pr-3">
             <Skeleton className="h-2.5 w-4" />
           </div>
