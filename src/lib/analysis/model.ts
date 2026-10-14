@@ -1,6 +1,7 @@
 import "server-only";
 import { ApiError as GenAIApiError, FinishReason, GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { env } from "@/lib/env";
+import { isTransientStatus, planAttempts, withModelRetries } from "./retry";
 
 let client: GoogleGenAI | null = null;
 function getClient() {
@@ -29,7 +30,7 @@ export class AnalysisRefusedError extends Error {
   }
 }
 
-/** The model provider is rate limiting us (the free tier allows only a few requests a minute). */
+/** The model provider is rate limiting or overloaded (free-tier models often return 429 or 503). */
 export class ModelBusyError extends Error {
   constructor() {
     super("The AI model is busy.");
@@ -57,14 +58,15 @@ export async function streamAnalysis(
   onEvent: (event: AnalysisEvent) => void,
   signal?: AbortSignal,
 ): Promise<AnalysisResult> {
-  const model = env().GEMINI_MODEL;
+  const { GEMINI_MODEL, GEMINI_FALLBACK_MODEL } = env();
   let text = "";
   let finishReason: FinishReason | undefined;
-  let modelVersion = model;
+  let modelVersion = GEMINI_MODEL;
   let inputTokens = 0;
   let outputTokens = 0;
 
-  try {
+  const attempt = async (model: string) => {
+    modelVersion = model;
     const stream = await getClient().models.generateContentStream({
       model,
       contents: [{ role: "user", parts: [{ text: params.user }] }],
@@ -91,8 +93,16 @@ export async function streamAnalysis(
         outputTokens = (chunk.usageMetadata.candidatesTokenCount ?? 0) + (chunk.usageMetadata.thoughtsTokenCount ?? 0);
       }
     }
+  };
+
+  try {
+    await withModelRetries(planAttempts(GEMINI_MODEL, GEMINI_FALLBACK_MODEL), attempt, {
+      isRetryable: (err) => err instanceof GenAIApiError && isTransientStatus(err.status),
+      hasStreamed: () => text.length > 0,
+      signal,
+    });
   } catch (err) {
-    if (err instanceof GenAIApiError && err.status === 429) throw new ModelBusyError();
+    if (err instanceof GenAIApiError && isTransientStatus(err.status)) throw new ModelBusyError();
     throw err;
   }
 
