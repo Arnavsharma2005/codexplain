@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { formatBytes, plural } from "@/lib/utils";
+import { FileIcon } from "./file-icon";
 import { useCopy } from "./use-copy";
 
 type Props = {
@@ -33,7 +34,7 @@ function readWrap(): boolean {
   return window.matchMedia("(max-width: 767px)").matches;
 }
 
-/** The code sheet: a light panel with file facts and actions, then the highlighted source. */
+/** The code editor: a file tab strip with quiet tools, then the highlighted source on navy. */
 export function CodeViewer({ path, file, loading, error, highlight, onLineSelect, onRetry, onBackToAnalysis }: Props) {
   const codeRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -92,53 +93,57 @@ export function CodeViewer({ path, file, loading, error, highlight, onLineSelect
     : "Code";
 
   return (
-    <section className="on-plate flex h-full min-h-0 flex-col border-2 border-plate-border bg-plate text-plate-fg">
-      <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-3 border-b border-plate-rule py-1.5 pr-2 pl-4">
-        <span className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-plate-label">
-          <span aria-hidden className="swatch marker-teal" />
-          Code
+    <section className="on-plate flex h-full min-h-0 flex-col border border-plate-border bg-plate text-plate-fg">
+      <div className="plate-tabstrip shrink-0 flex-wrap pr-1.5">
+        <span className="plate-tab" title={path}>
+          <FileIcon path={path} className="size-3.5" />
+          <span className="truncate">{name}</span>
         </span>
-        <span className="min-w-0 max-w-[40%] truncate font-mono text-[13px]" title={path}>
-          {name}
-        </span>
-        {file ? (
-          <span className="hidden truncate text-[12px] font-bold uppercase tracking-[.12em] text-plate-muted tabular sm:inline">
-            {languageLabel(file.language)}
-            {text ? ` · ${plural(file.lineCount, "line")}` : ""} · {formatBytes(file.size)}
-          </span>
-        ) : null}
-        <span className="flex-1" />
-        {onBackToAnalysis ? (
-          <Button variant="plate-outline" size="sm" className="lg:hidden" onClick={onBackToAnalysis}>
-            <ArrowLeft aria-hidden /> Back to analysis
-          </Button>
-        ) : null}
-        {file ? (
-          <div className="flex shrink-0 items-center gap-1">
-            {text ? (
-              <Button variant="plate" size="sm" aria-pressed={wrap} onClick={toggleWrap} className="px-2">
-                <WrapText aria-hidden /> Wrap
-              </Button>
+        <span className="flex min-w-0 flex-1 items-center gap-1 pl-3">
+          <span className="plate-meta hidden truncate sm:inline">
+            <b>Code</b>
+            {file ? (
+              <>
+                {languageLabel(file.language)}
+                {text ? ` · ${plural(file.lineCount, "line")}` : ""} · {formatBytes(file.size)}
+              </>
             ) : null}
-            {text ? (
-              <Tooltip content={copyCode.copied ? "Copied" : "Copy file"}>
-                <Button variant="plate" size="icon-sm" aria-label="Copy file contents" onClick={() => copyCode.copy(file.content!)}>
-                  {copyCode.copied ? <Check /> : <Copy />}
+          </span>
+          <span className="flex-1" />
+          {onBackToAnalysis ? (
+            <Button variant="plate-outline" size="sm" className="my-1 lg:hidden" onClick={onBackToAnalysis}>
+              <ArrowLeft aria-hidden /> Back to analysis
+            </Button>
+          ) : null}
+          {file ? (
+            <span className="plate-tools flex shrink-0 items-center gap-0.5">
+              {text ? (
+                <Tooltip content="Wrap lines">
+                  <Button variant="plate-quiet" size="icon-sm" aria-label="Wrap" aria-pressed={wrap} onClick={toggleWrap} className="size-7">
+                    <WrapText />
+                  </Button>
+                </Tooltip>
+              ) : null}
+              {text ? (
+                <Tooltip content={copyCode.copied ? "Copied" : "Copy file"}>
+                  <Button variant="plate-quiet" size="icon-sm" aria-label="Copy file contents" onClick={() => copyCode.copy(file.content!)} className="size-7">
+                    {copyCode.copied ? <Check /> : <Copy />}
+                  </Button>
+                </Tooltip>
+              ) : null}
+              <Tooltip content={copyLink.copied ? "Copied" : "Copy link"}>
+                <Button variant="plate-quiet" size="icon-sm" aria-label="Copy link to this file" onClick={() => copyLink.copy(window.location.href)} className="size-7">
+                  {copyLink.copied ? <Check /> : <Link2 />}
                 </Button>
               </Tooltip>
-            ) : null}
-            <Tooltip content={copyLink.copied ? "Copied" : "Copy link"}>
-              <Button variant="plate" size="icon-sm" aria-label="Copy link to this file" onClick={() => copyLink.copy(window.location.href)}>
-                {copyLink.copied ? <Check /> : <Link2 />}
+              <Button variant="plate-quiet" size="icon-sm" asChild className="size-7">
+                <a href={file.htmlUrl} target="_blank" rel="noopener noreferrer" aria-label="View on GitHub" data-tip="View on GitHub" data-tip-end="">
+                  <ExternalLink />
+                </a>
               </Button>
-            </Tooltip>
-            <Button variant="plate" size="icon-sm" asChild>
-              <a href={file.htmlUrl} target="_blank" rel="noopener noreferrer" aria-label="View on GitHub" data-tip="View on GitHub" data-tip-end="">
-                <ExternalLink />
-              </a>
-            </Button>
-          </div>
-        ) : null}
+            </span>
+          ) : null}
+        </span>
       </div>
 
       <div
@@ -196,7 +201,7 @@ function CodeSkeleton() {
   return (
     <div className="pt-3" aria-busy="true" aria-label="Loading file">
       {widths.map((w, i) => (
-        <div key={i} className="flex h-[22px] items-center">
+        <div key={i} className="flex h-6 items-center">
           <div className="flex w-14 justify-end pr-3">
             <Skeleton className="h-2.5 w-4" />
           </div>

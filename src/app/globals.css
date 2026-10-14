@@ -26,19 +26,25 @@
   --moon: #f2c14e; --on-moon: #0e1c3a; --moon-ink: #6e4e00;
   --jungle: #3d7a45; --on-jungle: #fffdf7; --jungle-ink: #2f6136;
 
-  /* The code sheet: a light, crisp panel in both themes. */
-  --plate: #fffdf7; --plate-border: #0e1c3a; --plate-fg: #0e1c3a; --plate-muted: #736956;
-  --plate-label: #a33d12; --plate-rule: #ddd2b8; --plate-hover: #f3ead2; --plate-hl: #fcecb8;
-  --plate-selection: #f6d98a; --plate-focus: #0e1c3a; --plate-bar: #f07a2e;
+  /* Workspace surfaces. --sheet: the analysis column, a solid ivory reading sheet (no grain).
+     --panel: the tree and header strips (transparent on paper, so the grain shows through).
+     --rule: structural rules (tab strip, h2, section tops). --edge: control borders. */
+  --sheet: #faf5e8; --sheet-edge: #d6cdb4; --panel: transparent; --rule: #0e1c3a; --rule-w: 2px; --edge: #0e1c3a;
+
+  /* The code editor: a navy, VS Code-like panel in every theme (only the depth changes).
+     Every token below is >= 4.5:1 on --plate, --plate-tabs and --plate-hl. */
+  --plate: #0f1a30; --plate-tabs: #0b1426; --plate-border: #0b1426; --plate-fg: #e3ddcd; --plate-muted: #7c88a0;
+  --plate-label: #f2955a; --plate-rule: #1d2a44; --plate-hover: #1a2742; --plate-hl: #172440;
+  --plate-selection: #2a3d63; --plate-focus: #f2955a; --plate-bar: #f07a2e;
 
   --shiki-background: transparent;
-  --shiki-foreground: #0e1c3a;
-  --shiki-token-keyword: #a33d12;
-  --shiki-token-string: #3a6614; --shiki-token-string-expression: #3a6614;
-  --shiki-token-function: #0a6169; --shiki-token-constant: #1f4a86;
-  --shiki-token-parameter: #7c2f6a; --shiki-token-comment: #685e4c;
-  --shiki-token-punctuation: #4d5468; --shiki-token-link: #1f4a86;
-  --shiki-token-inserted: #2f6b3d; --shiki-token-deleted: #a3261a; --shiki-token-changed: #7a5200;
+  --shiki-foreground: #e3ddcd;
+  --shiki-token-keyword: #f2955a;
+  --shiki-token-string: #e9cf8a; --shiki-token-string-expression: #e9cf8a;
+  --shiki-token-function: #6cc8cf; --shiki-token-constant: #89c2f0;
+  --shiki-token-parameter: #c9d3e6; --shiki-token-comment: #8794ab;
+  --shiki-token-punctuation: #a3adc0; --shiki-token-link: #89c2f0;
+  --shiki-token-inserted: #8fd19e; --shiki-token-deleted: #f28b7b; --shiki-token-changed: #e9cf8a;
 
   /* Toast: an inverse ink block. */
   --toast-bg: #0e1c3a; --toast-fg: #f2e5c3; --toast-hover: #22335a; --toast-icon: #f07a2e; --toast-focus: #f07a2e;
@@ -46,18 +52,41 @@
   --dur-fast: 120ms; --dur-base: 200ms; --ease-out: cubic-bezier(.2,.8,.2,1); --ease-draw: cubic-bezier(.6,0,.2,1);
 }
 
-/* Night: a warm brown desk (wavz night posters) with cream ink. The code sheet stays light. */
+/* Night, two candidates behind one switch: <html data-night="ink"|"charcoal"> (default ink).
+   No grain at night, hairlines instead of heavy rules. Both share the navy editor tokens above. */
+
+/* A. Midnight ink */
 .dark {
-  --paper: #2a1d15; --paper-raised: #35261c; --paper-sunk: #3f2d20;
-  --ink: #f2e5c3; --ink-muted: #cdbd9c; --hairline: #5c4636;
+  --paper: #0b1220; --paper-raised: #182339; --paper-sunk: #1b2740;
+  --sheet: #141f33; --sheet-edge: #223049; --panel: #111a2c;
+  --ink: #f2e5c3; --ink-muted: #b5ab93; --hairline: #223049; --rule: #2c3a56; --rule-w: 1px; --edge: #6b7a99;
   --label: #eda06a; --focus: #f07a2e;
   --danger: #f39c84; --success: #9ccf86; --warning: #f2c14e;
-  --ref-hover: #5e3c26; --selection: #6b4630;
+  --ref-hover: #4b3632; --selection: #33466b;
   --row-bar: #f07a2e;
-  --on-orange: #2a1d15;
+  --on-orange: #0b1220;
   --teal-ink: #8fcbcf; --moon-ink: #f2c14e; --jungle-ink: #9ccf86;
-  --plate: #f9f3e3; --plate-border: #120c08; --plate-hover: #efe5cb; --plate-rule: #d8ccb0;
-  --toast-bg: #f2e5c3; --toast-fg: #2a1d15; --toast-hover: #e2d2a8; --toast-icon: #a33d12; --toast-focus: #2a1d15;
+  --plate: #080d18; --plate-tabs: #0d1526; --plate-border: #223049; --plate-rule: #182339;
+  --plate-hover: #16213a; --plate-hl: #111b30;
+  --toast-bg: #f2e5c3; --toast-fg: #0b1220; --toast-hover: #e2d2a8; --toast-icon: #a33d12; --toast-focus: #0b1220;
+}
+
+/* B. Charcoal and ember: neutral greys, accents only orange and teal. */
+.dark[data-night="charcoal"] {
+  --paper: #131316; --paper-raised: #232329; --paper-sunk: #26262d;
+  --sheet: #1b1b20; --sheet-edge: #2a2a31; --panel: #1b1b20;
+  --ink-muted: #b2aa98; --hairline: #2a2a31; --rule: #34343c; --edge: #77777f;
+  --label: #f0a06c;
+  --ref-hover: #4a3326; --selection: #3d3d47;
+  --on-orange: #131316;
+  /* Moon and jungle fold into the two accents: a light ember and a light teal. */
+  --teal: #2f7f86; --on-teal: #fffdf7; --teal-ink: #7fcac4;
+  --moon: #f5b47e; --on-moon: #131316; --moon-ink: #f5b47e;
+  --jungle: #7fcac4; --on-jungle: #131316; --jungle-ink: #7fcac4;
+  --success: #7fcac4; --warning: #f5b47e;
+  --plate: #0e0e11; --plate-tabs: #161619; --plate-border: #2a2a31; --plate-rule: #222228;
+  --plate-hover: #202026; --plate-hl: #1a1a20; --plate-selection: #34343e;
+  --toast-fg: #131316; --toast-focus: #131316;
 }
 
 @theme inline {
@@ -67,7 +96,9 @@
   --color-danger: var(--danger); --color-success: var(--success); --color-warning: var(--warning);
   --color-plate: var(--plate); --color-plate-fg: var(--plate-fg); --color-plate-muted: var(--plate-muted);
   --color-plate-label: var(--plate-label); --color-plate-rule: var(--plate-rule); --color-plate-hover: var(--plate-hover);
-  --color-plate-border: var(--plate-border);
+  --color-plate-border: var(--plate-border); --color-plate-tabs: var(--plate-tabs);
+  --color-sheet: var(--sheet); --color-sheet-edge: var(--sheet-edge); --color-panel: var(--panel);
+  --color-rule: var(--rule); --color-edge: var(--edge);
   --color-teal: var(--teal); --color-on-teal: var(--on-teal); --color-teal-ink: var(--teal-ink);
   --color-moon: var(--moon); --color-on-moon: var(--on-moon); --color-moon-ink: var(--moon-ink);
   --color-jungle: var(--jungle); --color-on-jungle: var(--on-jungle); --color-jungle-ink: var(--jungle-ink);
@@ -85,7 +116,7 @@
     background-size: 128px;
     scrollbar-gutter: stable;
   }
-  html.dark { color-scheme: dark; }
+  html.dark { color-scheme: dark; background-image: none; }
   @media (min-resolution: 2dppx) { html { background-size: 64px; } }
   @media print, (forced-colors: active) { html, html.dark { background-image: none; } }
   html:has(.workspace-root) { scrollbar-gutter: auto; --toast-bottom: 62px; }
@@ -141,13 +172,13 @@
 /* Small solid mode/colour tag, e.g. the mode name in history rows. */
 .swatch { display: inline-block; width: 10px; height: 10px; flex-shrink: 0; background: var(--marker, var(--orange)); }
 @media (max-width: 639px) { .section-label { font-size: 13px; line-height: 18px; } }
-.section-ruled { border-top: 2px solid var(--ink); padding-top: 12px; }
+.section-ruled { border-top: var(--rule-w) solid var(--rule); padding-top: 12px; }
 .caption { font: 700 12px/16px var(--font-sans); text-transform: uppercase; letter-spacing: .12em; color: var(--label); font-variant-numeric: tabular-nums; }
 .meta { font: 500 13px/18px var(--font-sans); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .ui-text { font: 700 14px/16px var(--font-sans); text-transform: uppercase; letter-spacing: .08em; }
 
 /* ---------- List rows ---------- */
-.ruled-list { border-top: 2px solid var(--ink); }
+.ruled-list { border-top: var(--rule-w) solid var(--rule); }
 .ruled-list > li, .ruled-list > div { border-bottom: 1px solid var(--hairline); }
 .row-link::after { content: ""; position: absolute; inset: 0; }
 .row-link:focus-visible { outline: none; }
@@ -199,17 +230,25 @@
 .on-plate .skeleton { background: var(--plate-rule); }
 @keyframes pulse-op { from { opacity: .55; } to { opacity: 1; } }
 
-/* ---------- Code plate ---------- */
-.plate-scroll { scrollbar-width: thin; scrollbar-color: var(--plate-muted) transparent; }
-.code-view pre.shiki { margin: 0; padding: 12px 0 32px; background: transparent !important; color: var(--plate-fg) !important;
-  font: 400 14px/22px var(--font-mono); counter-reset: line; min-width: max-content; tab-size: 4; }
+/* ---------- Code editor (navy, VS Code-like, no grain) ---------- */
+.plate-scroll { scrollbar-width: thin; scrollbar-color: var(--plate-rule) transparent; }
+.plate-tabstrip { display: flex; align-items: stretch; min-height: 40px; background: var(--plate-tabs); border-bottom: 1px solid var(--plate-rule); }
+.plate-tab { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 60%; padding: 0 16px 0 14px;
+  background: var(--plate); color: var(--plate-fg); font: 400 13px/18px var(--font-mono);
+  box-shadow: inset 0 2px 0 var(--plate-bar); margin-bottom: -1px; }
+.plate-tab svg { color: var(--plate-label); }
+.plate-meta { font: 500 12px/16px var(--font-sans); letter-spacing: .04em; color: var(--plate-muted); font-variant-numeric: tabular-nums; }
+.plate-meta b { font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--plate-label); margin-right: 6px; }
+
+.code-view pre.shiki { margin: 0; padding: 10px 0 40px; background: transparent !important; color: var(--plate-fg) !important;
+  font: 400 14px/24px var(--font-mono); counter-reset: line; min-width: max-content; tab-size: 4; }
 .code-view pre.shiki code { display: block; }
 .code-view .line { display: inline-block; min-width: 100%; padding-right: 24px; scroll-margin-top: 30vh; }
 .code-view .line::before {
   counter-increment: line; content: counter(line); display: inline-block; box-sizing: border-box;
-  width: 56px; margin-right: 16px; padding-right: 12px; border-left: 4px solid transparent;
-  text-align: right; color: var(--plate-muted); font-variant-numeric: tabular-nums; user-select: none;
-  position: sticky; left: 0; background: var(--plate);
+  width: 56px; margin-right: 16px; padding-right: 14px; border-left: 2px solid transparent;
+  text-align: right; color: var(--plate-muted); font-size: 13px; font-variant-numeric: tabular-nums; user-select: none;
+  vertical-align: top; position: sticky; left: 0; background: var(--plate);
 }
 .code-view .line.highlighted, .code-view .line.highlighted::before { background: var(--plate-hl); }
 .code-view .line.highlighted::before { color: var(--plate-fg); border-left-color: var(--plate-bar); }
@@ -217,19 +256,19 @@
 .code-view[data-wrap="true"] .line { width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 72px; text-indent: -72px; }
 .code-view[data-wrap="true"] .line::before { text-indent: 0; position: static; }
 
-/* Landing specimen code: same plate look, no anchors, no counters shared with .code-view. */
-.specimen-code pre.shiki { margin: 0; padding: 12px 0 16px; background: transparent !important; color: var(--plate-fg) !important;
-  font: 400 13px/21px var(--font-mono); counter-reset: sline; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Landing specimen code: same editor look, no anchors, no counters shared with .code-view. */
+.specimen-code pre.shiki { margin: 0; padding: 10px 0 16px; background: transparent !important; color: var(--plate-fg) !important;
+  font: 400 14px/24px var(--font-mono); counter-reset: sline; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; }
 .specimen-code pre.shiki code { display: block; }
-.specimen-code .s-line { display: inline-block; width: 100%; box-sizing: border-box; padding: 0 16px 0 72px; text-indent: -72px; }
-.specimen-code .s-line::before { counter-increment: sline; content: counter(sline); display: inline-block; width: 56px; margin-right: 16px;
-  padding-right: 12px; box-sizing: border-box; text-indent: 0; text-align: right; color: var(--plate-muted); font-variant-numeric: tabular-nums; user-select: none; }
+.specimen-code .s-line { display: inline-block; width: 100%; box-sizing: border-box; padding: 0 16px 0 66px; text-indent: -66px; }
+.specimen-code .s-line::before { counter-increment: sline; content: counter(sline); display: inline-block; width: 52px; margin-right: 14px;
+  padding-right: 14px; box-sizing: border-box; text-indent: 0; text-align: right; color: var(--plate-muted); font-size: 13px; font-variant-numeric: tabular-nums; user-select: none; }
 
 /* ---------- Analysis document ---------- */
 .prose-analysis, .specimen-doc, .legal-doc { font: 500 16px/26px var(--font-sans); color: var(--ink); max-width: 68ch; counter-reset: sec; }
 :is(.prose-analysis, .specimen-doc, .legal-doc) > * + * { margin-top: 12px; }
 :is(.prose-analysis, .specimen-doc, .legal-doc) h2 { counter-increment: sec; font: 700 15px/20px var(--font-sans); text-transform: uppercase; letter-spacing: .14em;
-  color: var(--label); margin-top: 40px; padding-top: 12px; border-top: 2px solid var(--ink); }
+  color: var(--label); margin-top: 40px; padding-top: 12px; border-top: var(--rule-w) solid var(--rule); }
 :is(.prose-analysis, .specimen-doc, .legal-doc) h2:first-child { margin-top: 0; }
 :is(.prose-analysis, .specimen-doc, .legal-doc) h2::before { content: counter(sec, decimal-leading-zero); content: counter(sec, decimal-leading-zero) / "";
   display: inline-block; font: 400 13px/20px var(--font-mono); letter-spacing: 0; margin-right: 12px; padding: 0 6px;
@@ -247,12 +286,12 @@
 :is(.prose-analysis, .specimen-doc, .legal-doc) li > p { margin: 0; }
 :is(.prose-analysis, .specimen-doc, .legal-doc) a:not(.line-ref) { color: var(--ink); text-decoration: none; border-bottom: 2px solid var(--orange); }
 :is(.prose-analysis, .specimen-doc, .legal-doc) :not(pre) > code { font: 400 .88em/1 var(--font-mono); background: var(--paper-sunk); padding: 1px 4px; overflow-wrap: anywhere; }
-:is(.prose-analysis, .specimen-doc) pre { background: var(--plate); color: var(--plate-fg); border: 2px solid var(--plate-border);
+:is(.prose-analysis, .specimen-doc) pre { background: var(--plate); color: var(--plate-fg); border: 1px solid var(--plate-border);
   font: 400 13px/21px var(--font-mono); padding: 12px 16px; overflow-x: auto; scrollbar-width: thin; }
 .prose-analysis table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; font-size: 14px; }
 .prose-analysis th, .prose-analysis td { border-bottom: 1px solid var(--hairline); padding: 8px 12px 8px 0; text-align: left; vertical-align: top; }
-.prose-analysis th { font: 700 12px/16px var(--font-sans); text-transform: uppercase; letter-spacing: .08em; color: var(--label); border-bottom: 2px solid var(--ink); }
-.prose-analysis blockquote { border-left: 2px solid var(--ink); padding-left: 14px; color: var(--ink-muted); }
+.prose-analysis th { font: 700 12px/16px var(--font-sans); text-transform: uppercase; letter-spacing: .08em; color: var(--label); border-bottom: var(--rule-w) solid var(--rule); }
+.prose-analysis blockquote { border-left: var(--rule-w) solid var(--rule); padding-left: 14px; color: var(--ink-muted); }
 .prose-analysis hr { border: 0; border-top: 1px solid var(--hairline); }
 :is(.prose-analysis, .specimen-doc) .line-ref { font: 400 .85em/1 var(--font-mono); color: var(--ink); text-decoration: none; white-space: nowrap;
   padding: 0 2px; border-bottom: 2px solid var(--orange); transition: background-color var(--dur-fast); }
@@ -264,10 +303,10 @@
 .status-mark-live { animation: blink 1s steps(2, start) infinite; }
 
 /* ---------- Tabs (mode tabs + mobile panel tabs) ---------- */
-.tab-strip { display: flex; border-bottom: 2px solid var(--ink); overflow-x: auto; scrollbar-width: none; }
+.tab-strip { display: flex; border-bottom: var(--rule-w) solid var(--rule); overflow-x: auto; scrollbar-width: none; }
 .tab-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; flex-shrink: 0;
   font: 600 14px/16px var(--font-sans); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-muted);
-  border-bottom: 4px solid transparent; margin-bottom: -2px; transition: color var(--dur-fast); cursor: pointer; }
+  border-bottom: 4px solid transparent; margin-bottom: calc(-1 * var(--rule-w)); transition: color var(--dur-fast); cursor: pointer; }
 .tab-btn:hover { color: var(--ink); }
 .tab-btn[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--mode, var(--orange)); }
 .mode-chip { display: inline-block; padding: 0 5px; font: 400 13px/20px var(--font-mono); letter-spacing: 0; background: var(--mode, var(--orange)); color: var(--on-mode, var(--on-orange)); }
@@ -313,12 +352,16 @@
 /* ---------- Workspace grid ---------- */
 .ws-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); min-height: 0; flex: 1; position: relative; overflow: hidden; }
 .ws-tree, .ws-doc, .ws-code { min-height: 0; min-width: 0; }
+/* The analysis column is its own solid reading sheet; the tree sits on the panel colour (paper + grain by day). */
+.ws-doc { background: var(--sheet); }
+.ws-tree { background: var(--panel); }
 .ws-rail { display: none; }
 @media (max-width: 1023px) {
   .ws-grid > [data-active="false"] { display: none !important; }
 }
 @media (min-width: 1024px) {
-  .ws-code { padding: 12px 12px 12px 0; }
+  .ws-code { padding: 12px; }
+  .ws-doc { border-inline: 1px solid var(--sheet-edge); }
   .ws-grid[data-layout="root"] { grid-template-columns: 264px minmax(0, 1fr); }
   .ws-grid[data-layout="root"] .ws-code { display: none; }
   .ws-grid[data-layout="file"] { grid-template-columns: 48px minmax(420px, 1fr) minmax(480px, 1.1fr); }
@@ -327,7 +370,7 @@
   .ws-grid[data-layout="file"] .ws-code { grid-column: 3; grid-row: 1; }
   .ws-grid[data-layout="file"] .ws-tree {
     position: absolute; top: 0; bottom: 0; left: 48px; width: 320px; z-index: 30;
-    background: var(--paper-raised); border-right: 2px solid var(--ink);
+    background: var(--paper-raised); border-right: var(--rule-w) solid var(--rule);
     transform: translateX(-100%); visibility: hidden; transition: transform var(--dur-base) var(--ease-out), visibility 0s linear var(--dur-base);
   }
   .ws-grid[data-layout="file"][data-drawer="true"] .ws-tree { transform: none; visibility: visible; transition: transform var(--dur-base) var(--ease-out); }
@@ -337,7 +380,7 @@
   .ws-grid[data-layout="file"][data-folded="false"] .ws-rail { display: none; }
   .ws-grid[data-layout="file"][data-folded="false"] .ws-tree {
     position: static; grid-column: 1; grid-row: 1; width: auto; transform: none; visibility: visible; transition: none;
-    background: transparent; border-right: 1px solid var(--hairline);
+    background: var(--panel); border-right: 0;
   }
 }
 
@@ -367,3 +410,7 @@
 .tree-row[aria-selected="true"] svg { color: var(--ink); }
 @media (pointer: coarse) { .tree-row { min-height: 44px; } }
 }
+
+/* Night controls: a quiet edge (>= 3:1 on every night surface) instead of a cream 2px line.
+   Unlayered so it beats the border-ink utility. */
+.dark .border-ink { border-color: var(--edge); }

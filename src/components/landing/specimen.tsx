@@ -6,6 +6,7 @@ import { languageLabel } from "@/lib/languages";
 import { linkifyLineRefs, parseLineHash } from "@/lib/line-refs";
 import { specimen } from "@/content/specimen";
 import { formatBytes } from "@/lib/utils";
+import { FileIcon } from "@/components/workspace/file-icon";
 
 /** A static analysis next to its code, rendered on the server (no client fetch, no live model call). */
 export async function Specimen() {
@@ -29,7 +30,7 @@ export async function Specimen() {
         </p>
       </div>
       <div className="grid border-2 border-ink lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-        <div className="min-w-0 bg-paper-raised px-4 py-5 sm:px-8 sm:py-7">
+        <div className="min-w-0 bg-sheet px-4 py-5 sm:px-8 sm:py-7">
           <p className="font-mono text-[13px] text-label">{dir}</p>
           <p className="doc-title mt-1">{name}</p>
           <p className="caption mt-2">
@@ -59,13 +60,15 @@ export async function Specimen() {
           </div>
         </div>
         <div className="on-plate min-w-0 border-t-2 border-ink bg-plate text-plate-fg lg:border-t-0 lg:border-l-2">
-          <div className="flex h-11 items-center gap-3 border-b border-plate-rule px-4">
-            <span className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[.14em] text-plate-label">
-              <span aria-hidden className="swatch marker-teal" />
-              Code
+          <div className="plate-tabstrip pr-4">
+            <span className="plate-tab">
+              <FileIcon path={path} className="size-3.5" />
+              <span className="truncate">{name}</span>
             </span>
-            <span className="truncate font-mono text-[13px]">{name}</span>
-            <span className="ml-auto shrink-0 text-[12px] font-bold uppercase tracking-[.12em] text-plate-muted">{lines} lines</span>
+            <span className="plate-meta ml-auto self-center truncate pl-3">
+              <b>Code</b>
+              {lines} lines
+            </span>
           </div>
           <div className="specimen-code" dangerouslySetInnerHTML={{ __html: html }} />
         </div>

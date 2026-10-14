@@ -14,6 +14,7 @@ const buttonVariants = cva(
         ghost: "border-transparent border-b-[3px] text-ink hover:border-b-orange",
         "ghost-icon": "border-transparent text-ink hover:bg-paper-sunk",
         plate: "border-transparent text-plate-fg hover:bg-plate-hover",
+        "plate-quiet": "border-transparent text-plate-muted hover:bg-plate-hover hover:text-plate-fg aria-pressed:bg-plate-hover aria-pressed:text-plate-fg",
         "plate-outline": "border-plate-fg bg-transparent text-plate-fg hover:bg-plate-fg hover:text-plate",
         destructive: "border-danger bg-transparent text-danger hover:bg-danger hover:text-paper",
         link: "border-0 border-b-[3px] border-b-orange px-0 text-ink hover:text-label",

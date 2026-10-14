@@ -13,7 +13,7 @@ export function SiteHeader({ className, search = true }: { className?: string; s
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 flex h-12 shrink-0 items-center gap-1.5 border-b-2 border-ink bg-paper px-4 sm:gap-4 sm:px-6 lg:h-14",
+        "sticky top-0 z-40 flex h-12 shrink-0 items-center gap-1.5 border-b-2 border-rule bg-paper px-4 dark:border-b dark:bg-panel sm:gap-4 sm:px-6 lg:h-14",
         className,
       )}
     >

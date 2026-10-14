@@ -306,7 +306,7 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
       <SiteHeader />
 
       {/* Running head */}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hairline bg-paper px-3 sm:gap-3 sm:px-4">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hairline bg-paper px-3 dark:bg-panel sm:gap-3 sm:px-4">
         {path ? (
           <Tooltip content={folded ? "Show files" : "Hide files"}>
             <Button
@@ -405,7 +405,7 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
         <aside
           ref={treePanelRef}
           id="file-tree-panel"
-          className="ws-tree flex flex-col border-hairline lg:border-r"
+          className="ws-tree flex flex-col"
           data-active={mobileTab === "files"}
           >
           <div id="panel-files" role="tabpanel" aria-labelledby="panel-tab-files" className="flex min-h-0 flex-1 flex-col">

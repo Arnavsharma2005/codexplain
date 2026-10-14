@@ -426,7 +426,7 @@ function Colophon({ visible, status, children }: { visible: boolean; status: Rea
   return (
     <div
       className={cn(
-        "flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-hairline bg-paper px-4 py-1.5",
+        "flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-sheet-edge bg-sheet px-4 py-1.5",
         !visible && "sr-only",
       )}
     >
