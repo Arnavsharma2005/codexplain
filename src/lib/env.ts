@@ -9,6 +9,8 @@ const schema = z.object({
   // Free key from https://aistudio.google.com/apikey
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
+  // Tried when the primary model stays overloaded (503) after a retry.
+  GEMINI_FALLBACK_MODEL: z.string().min(1).default("gemini-3.6-flash"),
   // Overridable for tests (pointed at a local mock server).
   GEMINI_BASE_URL: z.url().optional(),
   // Optional server token so signed-out visitors can browse public repos
