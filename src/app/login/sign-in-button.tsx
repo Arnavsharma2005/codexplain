@@ -11,14 +11,15 @@ export function SignInButton({ callbackUrl }: { callbackUrl: string }) {
   return (
     <Button
       size="lg"
-      className="mt-6 w-full"
+      className="w-full"
       disabled={loading}
+      aria-busy={loading || undefined}
       onClick={() => {
         setLoading(true);
         void signIn("github", { callbackUrl });
       }}
     >
-      {loading ? <Loader2 className="animate-spin" /> : <GitHubIcon />}
+      {loading ? <Loader2 className="motion-safe:animate-spin" /> : <GitHubIcon />}
       Continue with GitHub
     </Button>
   );

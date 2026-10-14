@@ -14,7 +14,7 @@ export const GET = handler(async (req: Request) => {
   const { owner, repo, ref, path } = fileQuerySchema.parse(searchParamsObject(req));
   const file = await getFile(owner, repo, ref, path, { token: await getGitHubToken() });
   const language = detectLanguage(path);
-  const html = file.content != null ? await highlight(file.content, language) : null;
+  const html = file.content != null ? await highlight(file.content, language, { cacheKey: file.sha }) : null;
 
   const body: FileResponse = {
     path: file.path,

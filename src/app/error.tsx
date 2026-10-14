@@ -2,6 +2,9 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { Masthead } from "@/components/masthead";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -9,18 +12,26 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
     console.error(error);
   }, [error]);
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-24 text-center">
-      <h1 className="text-2xl font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-muted-foreground">
-        An unexpected error occurred. Please try again; if it keeps happening, let us know on GitHub.
-      </p>
-      {error.digest ? <p className="font-mono text-xs text-muted-foreground">Reference: {error.digest}</p> : null}
-      <div className="flex gap-2">
-        <Button onClick={reset}>Try again</Button>
-        <Button variant="outline" asChild>
-          <Link href="/">Home</Link>
-        </Button>
-      </div>
-    </div>
+    <>
+      <SiteHeader search={false} />
+      <main className="page flex-1">
+        <Masthead title="Something went wrong" />
+        <p className="max-w-[60ch]">
+          An unexpected error occurred. Please try again. If it keeps happening,{" "}
+          <a href="https://github.com/Arnavsharma2005/codexplain/issues" rel="noreferrer" className="chrome-link">
+            Report an issue
+          </a>
+          .
+        </p>
+        {error.digest ? <p className="meta mt-3 font-mono">Reference: {error.digest}</p> : null}
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Button onClick={reset}>Try again</Button>
+          <Button variant="secondary" asChild>
+            <Link href="/">Home</Link>
+          </Button>
+        </div>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

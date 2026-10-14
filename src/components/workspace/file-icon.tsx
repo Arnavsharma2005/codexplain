@@ -9,17 +9,17 @@ const CONFIG = new Set(["yml", "yaml", "toml", "ini", "cfg", "conf", "env", "xml
 const IMAGES = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "avif"]);
 const SHELL = new Set(["sh", "bash", "zsh", "fish", "ps1", "bat"]);
 
+/** One monochrome icon per kind of file; the shape carries the meaning, not colour. */
 export function FileIcon({ path, className }: { path: string; className?: string }) {
   const ext = extensionOf(path);
   const name = path.split("/").pop()?.toLowerCase() ?? "";
-  const cls = cn("size-4 shrink-0", className);
-  if (name.endsWith("lock") || name.endsWith(".lock") || name === "package-lock.json") return <FileLock2 className={cn(cls, "text-muted-foreground")} />;
-  if (CODE.has(ext)) return <FileCode2 className={cn(cls, "text-sky-500 dark:text-sky-400")} />;
-  if (DATA.has(ext)) return <FileJson className={cn(cls, "text-amber-500")} />;
-  if (DOCS.has(ext)) return <FileText className={cn(cls, "text-emerald-500")} />;
-  if (IMAGES.has(ext)) return <FileImage className={cn(cls, "text-pink-500")} />;
-  if (SHELL.has(ext)) return <FileTerminal className={cn(cls, "text-lime-600 dark:text-lime-400")} />;
-  if (CONFIG.has(ext) || name.startsWith(".") || name === "dockerfile" || name === "makefile")
-    return <FileCog className={cn(cls, "text-violet-500 dark:text-violet-400")} />;
-  return <File className={cn(cls, "text-muted-foreground")} />;
+  const cls = cn("size-4 shrink-0 text-ink-muted", className);
+  if (name.endsWith("lock") || name.endsWith(".lock") || name === "package-lock.json") return <FileLock2 className={cls} aria-hidden />;
+  if (CODE.has(ext)) return <FileCode2 className={cls} aria-hidden />;
+  if (DATA.has(ext)) return <FileJson className={cls} aria-hidden />;
+  if (DOCS.has(ext)) return <FileText className={cls} aria-hidden />;
+  if (IMAGES.has(ext)) return <FileImage className={cls} aria-hidden />;
+  if (SHELL.has(ext)) return <FileTerminal className={cls} aria-hidden />;
+  if (CONFIG.has(ext) || name.startsWith(".") || name === "dockerfile" || name === "makefile") return <FileCog className={cls} aria-hidden />;
+  return <File className={cls} aria-hidden />;
 }

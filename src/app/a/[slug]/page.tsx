@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Code2 } from "lucide-react";
+import { Code2 } from "lucide-react";
 import { getSharedAnalysis } from "@/lib/services/analyses";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SharedMarkdown } from "./shared-markdown";
 
@@ -37,40 +36,37 @@ export default async function SharedAnalysisPage({ params }: PageProps<"/a/[slug
   return (
     <>
       <SiteHeader />
-      <main className="flex-1">
-        <div className="mx-auto max-w-3xl px-6 py-12">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Badge>{MODE_LABEL[a.mode]}</Badge>
-            <span>
+      <main className="page flex-1">
+        <header>
+          <p className="caption">
+            {MODE_LABEL[a.mode]} ·{" "}
+            <span className="font-mono normal-case tracking-normal">
               {a.repository.owner}/{a.repository.name}
-            </span>
-            <span>·</span>
-            <span className="font-mono">{a.ref}</span>
-          </div>
-          <h1 className="mt-3 break-all font-mono text-2xl font-semibold">{a.path}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+            </span>{" "}
+            · <span className="font-mono normal-case tracking-normal">{a.ref}</span>
+          </p>
+          <h1 className="mt-2 break-all font-mono text-[20px] leading-[26px] sm:text-[26px] sm:leading-8">{a.path}</h1>
+          <p className="meta mt-2">
             {sharer ? <>Shared by @{sharer} · </> : null}
             {a.createdAt.toLocaleDateString("en", { year: "numeric", month: "long", day: "numeric" })}
           </p>
-          <div className="mt-6 flex gap-2">
-            <Button asChild>
-              <Link href={codeHref}>
-                <Code2 /> Open with the code
-              </Link>
-            </Button>
-          </div>
+          <hr className="accent-rule" />
+        </header>
+        <Button asChild>
+          <Link href={codeHref}>
+            <Code2 /> Open with the code
+          </Link>
+        </Button>
 
-          <div className="mt-10 rounded-2xl border border-border bg-card p-6 sm:p-8">
-            <SharedMarkdown content={a.content} codeHref={codeHref} />
-          </div>
+        <div className="mt-10">
+          <SharedMarkdown content={a.content} codeHref={codeHref} />
+        </div>
 
-          <div className="mt-10 rounded-2xl border border-border bg-muted/40 p-6 text-center">
-            <p className="font-medium">Understand any GitHub repository</p>
-            <p className="mt-1 text-sm text-muted-foreground">Paste a link and get explanations like this for any file.</p>
-            <Link href="/" className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
-              Try Codexplain <ArrowRight className="size-4" />
-            </Link>
-          </div>
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t-2 border-ink pt-4">
+          <p className="meta">Made with Codexplain. Paste any GitHub link and read it like this.</p>
+          <Link href="/" className="chrome-link font-bold uppercase tracking-[.08em]">
+            Try Codexplain →
+          </Link>
         </div>
       </main>
       <SiteFooter />

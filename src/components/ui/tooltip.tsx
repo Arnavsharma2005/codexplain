@@ -1,34 +1,10 @@
-"use client";
-
 import * as React from "react";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { cn } from "@/lib/utils";
 
-export const TooltipProvider = TooltipPrimitive.Provider;
-
-export function Tooltip({
-  content,
-  children,
-  side = "bottom",
-}: {
-  content: React.ReactNode;
-  children: React.ReactNode;
-  side?: "top" | "bottom" | "left" | "right";
-}) {
-  return (
-    <TooltipPrimitive.Root delayDuration={250}>
-      <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
-      <TooltipPrimitive.Portal>
-        <TooltipPrimitive.Content
-          side={side}
-          sideOffset={6}
-          className={cn(
-            "z-50 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground shadow-md animate-fade-in",
-          )}
-        >
-          {content}
-        </TooltipPrimitive.Content>
-      </TooltipPrimitive.Portal>
-    </TooltipPrimitive.Root>
-  );
+/**
+ * A CSS-only tooltip: adds `data-tip` to its single child (styled in globals.css).
+ * Use it only on controls that already have an `aria-label`, so the tip never
+ * becomes part of an accessible name and never carries information of its own.
+ */
+export function Tooltip({ content, children }: { content: string; children: React.ReactElement<{ "data-tip"?: string }> }) {
+  return React.cloneElement(children, { "data-tip": content });
 }

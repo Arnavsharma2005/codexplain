@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
-import { BookOpen, Code2, ExternalLink, FolderTree, GitFork, PanelLeftClose, PanelLeftOpen, Scale, Sparkles, Star } from "lucide-react";
+import { Code2, ExternalLink, FileText, FolderTree, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import type { FileResponse } from "@/lib/api-types";
 import { ApiClientError, apiGet } from "@/lib/api-client";
 import type { RepoInfo, RepoRefs, RepoTree } from "@/lib/github/types";
@@ -41,8 +42,25 @@ function toLoad<T>(key: string | null, result: Result<T> | null): Load<T> {
 
 type MobileTab = "files" | "code" | "analysis";
 
+const PANELS = [
+  ["files", "Files", FolderTree],
+  ["code", "Code", Code2],
+  ["analysis", "Analysis", FileText],
+] as const;
+
 function errorMessage(err: unknown) {
   return err instanceof ApiClientError ? err.message : "Something went wrong. Please try again.";
+}
+
+const isDesktop = () => window.matchMedia("(min-width: 1024px)").matches;
+const isWide = () => window.matchMedia("(min-width: 1280px)").matches;
+
+function readFolded(): boolean {
+  try {
+    return localStorage.getItem("cx-tree") === "folded";
+  } catch {
+    return false;
+  }
 }
 
 export function Workspace({ repo, refs, initialRef, initialPath, initialDir, signedIn, initialStarred }: Props) {
@@ -53,17 +71,26 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
   const [treeResult, setTreeResult] = useState<Result<RepoTree> | null>(null);
   const [fileResult, setFileResult] = useState<Result<FileResponse> | null>(null);
   const [highlight, setHighlight] = useState<LineRange | null>(null);
-  const [treeOpen, setTreeOpen] = useState(true);
   const [mobileTab, setMobileTab] = useState<MobileTab>(initialPath ? "code" : "files");
+  const [folded, setFolded] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [fromAnalysis, setFromAnalysis] = useState(false);
   const [treeAttempt, setTreeAttempt] = useState(0);
   const [fileAttempt, setFileAttempt] = useState(0);
   const pendingHash = useRef<LineRange | null>(null);
+  const filterRef = useRef<HTMLInputElement>(null);
+  const treePanelRef = useRef<HTMLElement>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const panelTabRefs = useRef<Partial<Record<MobileTab, HTMLButtonElement | null>>>({});
 
   const repoQs = useMemo(() => new URLSearchParams({ owner: repo.owner, repo: repo.name, ref: gitRef }), [repo, gitRef]);
 
-  // Line anchor from the URL (e.g. shared links ending in #L42-L50).
+  // Line anchor from the URL (e.g. shared links ending in #L42-L50), and the remembered tree fold.
   useEffect(() => {
     pendingHash.current = parseLineHash(window.location.hash);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a browser-only preference, read once after hydration
+    setFolded(readFolded());
   }, []);
 
   // Back/forward navigation between files.
@@ -125,6 +152,8 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
   const selectFile = useCallback(
     (p: string) => {
       setMobileTab("code");
+      setDrawerOpen(false);
+      setFromAnalysis(false);
       if (p === path) return;
       setPath(p);
       setHighlight(null);
@@ -133,6 +162,13 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
     [path, urlFor],
   );
 
+  const goToRoot = useCallback(() => {
+    setPath(null);
+    setHighlight(null);
+    setMobileTab("files");
+    window.history.pushState(null, "", urlFor(null));
+  }, [urlFor]);
+
   const selectLines = useCallback(
     (range: LineRange) => {
       setHighlight(range);
@@ -140,6 +176,14 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
       window.history.replaceState(null, "", urlFor(path, formatLineHash(range)));
     },
     [path, urlFor],
+  );
+
+  const selectLinesFromAnalysis = useCallback(
+    (range: LineRange) => {
+      selectLines(range);
+      setFromAnalysis(true);
+    },
+    [selectLines],
   );
 
   const switchRef = useCallback(
@@ -151,11 +195,98 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
     [path, repo, router],
   );
 
-  const revealInTree = useCallback((dir: string) => {
-    setRevealDir(dir);
-    setTreeOpen(true);
-    setMobileTab("files");
-  }, []);
+  /** With a file open, the tree is a drawer at 1024-1279px, or at 1280+ when folded. */
+  const treeIsDrawer = useCallback(() => !!path && isDesktop() && (folded || !isWide()), [path, folded]);
+
+  /** Makes the tree visible: the drawer on desktop, the Files tab on mobile. */
+  const revealTree = useCallback(() => {
+    if (!isDesktop()) setMobileTab("files");
+    else if (treeIsDrawer()) setDrawerOpen(true);
+  }, [treeIsDrawer]);
+
+  const revealInTree = useCallback(
+    (dir: string) => {
+      setRevealDir(dir);
+      revealTree();
+    },
+    [revealTree],
+  );
+
+  const focusFilter = useCallback(() => {
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Commit the reveal synchronously so the filter is focusable before the next keystroke arrives.
+    flushSync(revealTree);
+    filterRef.current?.focus();
+  }, [revealTree]);
+
+  // "/" opens "Go to file" from anywhere in the workspace.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        focusFilter();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusFilter]);
+
+  // The drawer closes on Escape (focus returns to its opener) and on a click outside it.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setDrawerOpen(false);
+      (returnFocus.current ?? railRef.current?.querySelector<HTMLElement>("button"))?.focus();
+    }
+    function onDown(e: PointerEvent) {
+      const t = e.target as Node;
+      if (treePanelRef.current?.contains(t) || railRef.current?.contains(t)) return;
+      setDrawerOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [drawerOpen]);
+
+  function toggleFold() {
+    setFolded((f) => {
+      try {
+        localStorage.setItem("cx-tree", f ? "open" : "folded");
+      } catch {
+        /* storage unavailable */
+      }
+      return !f;
+    });
+    setDrawerOpen(false);
+  }
+
+  function onFilterEscape() {
+    const back = returnFocus.current;
+    returnFocus.current = null;
+    if (drawerOpen) setDrawerOpen(false);
+    if (back && back !== filterRef.current) back.focus();
+    else filterRef.current?.blur();
+  }
+
+  function onPanelTabKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    const i = PANELS.findIndex(([k]) => k === mobileTab);
+    let next = -1;
+    if (e.key === "ArrowRight") next = (i + 1) % PANELS.length;
+    else if (e.key === "ArrowLeft") next = (i - 1 + PANELS.length) % PANELS.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = PANELS.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    const key = PANELS[next][0];
+    setMobileTab(key);
+    panelTabRefs.current[key]?.focus();
+  }
 
   const suggested = useMemo(() => {
     const files = tree.data?.entries.filter((e) => e.type === "blob").map((e) => e.path) ?? [];
@@ -168,88 +299,162 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
     return picks.slice(0, 6);
   }, [tree.data]);
 
-  return (
-    <div className="flex h-dvh flex-col overflow-hidden">
-      <SiteHeader>
-        <RepoSearch size="sm" className="hidden max-w-md md:block" />
-      </SiteHeader>
+  const facts = [`${formatNumber(repo.stars)} stars`, `${formatNumber(repo.forks)} forks`, repo.language].filter(Boolean).join(" · ");
 
-      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-3 py-2 sm:px-4">
-        <Tooltip content={treeOpen ? "Hide files" : "Show files"}>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="hidden lg:inline-flex"
-            aria-label={treeOpen ? "Hide file tree" : "Show file tree"}
-            onClick={() => setTreeOpen((o) => !o)}
-          >
-            {treeOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
-          </Button>
-        </Tooltip>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={repo.ownerAvatarUrl} alt="" className="size-6 rounded-md" width={24} height={24} />
-        <button onClick={() => { setPath(null); setHighlight(null); window.history.pushState(null, "", urlFor(null)); }} className="min-w-0 truncate text-[15px] hover:underline">
-          <span className="text-muted-foreground">{repo.owner}/</span>
-          <span className="font-semibold">{repo.name}</span>
-        </button>
+  return (
+    <div className="workspace-root flex h-dvh flex-col overflow-hidden">
+      <SiteHeader />
+
+      {/* Running head */}
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hairline bg-paper px-3 sm:gap-3 sm:px-4">
+        {path ? (
+          <Tooltip content={folded ? "Show files" : "Hide files"}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hidden xl:inline-flex"
+              aria-label={folded ? "Show file tree" : "Hide file tree"}
+              aria-expanded={!folded}
+              aria-controls="file-tree-panel"
+              onClick={toggleFold}
+            >
+              {folded ? <PanelLeftOpen /> : <PanelLeftClose />}
+            </Button>
+          </Tooltip>
+        ) : null}
+        <a
+          href={urlFor(null)}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            goToRoot();
+          }}
+          className="min-w-0 truncate font-mono text-[15px] leading-5 hover:underline hover:decoration-orange hover:decoration-2 hover:underline-offset-4"
+        >
+          <span className="text-ink-muted">{repo.owner}/</span>
+          <span className="text-ink">{repo.name}</span>
+        </a>
         <RefSwitcher refs={refs} current={gitRef} defaultBranch={repo.defaultBranch} onSelect={switchRef} />
-        <div className="hidden items-center gap-3 text-xs text-muted-foreground md:flex">
-          <span className="flex items-center gap-1"><Star className="size-3.5" />{formatNumber(repo.stars)}</span>
-          <span className="flex items-center gap-1"><GitFork className="size-3.5" />{formatNumber(repo.forks)}</span>
-          {repo.language ? <span>{repo.language}</span> : null}
-        </div>
-        <div className="ml-auto flex items-center gap-2">
+        <p className="caption hidden truncate md:block">{facts}</p>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <StarButton owner={repo.owner} repo={repo.name} initial={initialStarred} signedIn={signedIn} />
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="secondary" size="sm" asChild className="px-2 sm:px-3">
             <a href={repo.htmlUrl} target="_blank" rel="noopener noreferrer">
-              <ExternalLink /> <span className="hidden sm:inline">GitHub</span>
+              GitHub <ExternalLink className="hidden sm:block" aria-hidden />
             </a>
           </Button>
         </div>
       </div>
 
-      <div className="flex shrink-0 border-b border-border lg:hidden" role="tablist" aria-label="Workspace panels">
-        {([
-          ["files", "Files", FolderTree],
-          ["code", "Code", Code2],
-          ["analysis", "Analysis", Sparkles],
-        ] as const).map(([key, label, Icon]) => (
+      {/* Mobile panel switcher */}
+      <div className="tab-strip shrink-0 lg:hidden" role="tablist" aria-label="Workspace panels" onKeyDown={onPanelTabKey}>
+        {PANELS.map(([key, label, Icon]) => (
           <button
             key={key}
+            ref={(el) => {
+              panelTabRefs.current[key] = el;
+            }}
+            id={`panel-tab-${key}`}
             role="tab"
             aria-selected={mobileTab === key}
+            aria-controls={`panel-${key}`}
+            tabIndex={mobileTab === key ? 0 : -1}
             onClick={() => setMobileTab(key)}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 py-2.5 text-sm font-medium",
-              mobileTab === key ? "border-b-2 border-primary text-foreground" : "text-muted-foreground",
-            )}
+            className="tab-btn flex-1 justify-center"
           >
-            <Icon className="size-4" /> {label}
+            <Icon className="size-4" aria-hidden /> {label}
           </button>
         ))}
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="ws-grid" data-layout={path ? "file" : "root"} data-folded={folded} data-drawer={drawerOpen}>
+        <div ref={railRef} className="ws-rail flex-col items-center gap-2 border-r border-hairline bg-paper-sunk py-2">
+          <Tooltip content="Files  /">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Show file tree"
+              aria-expanded={drawerOpen}
+              aria-controls="file-tree-panel"
+              onClick={(e) => {
+                returnFocus.current = e.currentTarget;
+                setDrawerOpen((o) => !o);
+              }}
+              data-tip-start=""
+            >
+              <PanelLeftOpen />
+            </Button>
+          </Tooltip>
+          <Tooltip content="Go to file">
+            <Button
+              data-tip-start=""
+              variant="ghost"
+              size="icon"
+              aria-label="Go to file"
+              onClick={(e) => {
+                returnFocus.current = e.currentTarget;
+                flushSync(() => setDrawerOpen(true));
+                filterRef.current?.focus();
+              }}
+            >
+              <Search />
+            </Button>
+          </Tooltip>
+        </div>
+
         <aside
-          className={cn(
-            "min-h-0 w-full shrink-0 border-r border-border bg-card/40 lg:w-64 xl:w-72",
-            mobileTab === "files" ? "block" : "hidden",
-            treeOpen ? "lg:block" : "lg:hidden",
-          )}
-        >
-          <FileTree
-            entries={tree.data?.entries ?? null}
-            loading={tree.status === "loading"}
-            error={tree.error}
-            truncated={tree.data?.truncated ?? false}
-            activePath={path}
-            revealDir={revealDir}
-            onSelect={selectFile}
-            onRetry={() => setTreeAttempt((n) => n + 1)}
-          />
+          ref={treePanelRef}
+          id="file-tree-panel"
+          className="ws-tree flex flex-col border-hairline lg:border-r"
+          data-active={mobileTab === "files"}
+          >
+          <div id="panel-files" role="tabpanel" aria-labelledby="panel-tab-files" className="flex min-h-0 flex-1 flex-col">
+            <div className="border-b border-hairline p-3 md:hidden">
+              <RepoSearch size="sm" />
+            </div>
+            <div className="min-h-0 flex-1">
+              <FileTree
+                entries={tree.data?.entries ?? null}
+                loading={tree.status === "loading"}
+                error={tree.error}
+                truncated={tree.data?.truncated ?? false}
+                activePath={path}
+                revealDir={revealDir}
+                onSelect={selectFile}
+                onRetry={() => setTreeAttempt((n) => n + 1)}
+                inputRef={filterRef}
+                onEscape={onFilterEscape}
+              />
+            </div>
+          </div>
         </aside>
 
-        <section className={cn("min-h-0 min-w-0 flex-1", mobileTab === "code" ? "block" : "hidden", "lg:block")}>
+        <section
+          id="panel-analysis"
+          role="tabpanel"
+          aria-labelledby="panel-tab-analysis"
+          className="ws-doc"
+          data-active={mobileTab === "analysis"}
+        >
+          {path ? (
+            <AnalysisPanel
+              key={file.data ? `${file.data.path}@${file.data.sha}` : "none"}
+              owner={repo.owner}
+              repo={repo.name}
+              gitRef={gitRef}
+              path={path}
+              file={file.data}
+              fileLoading={file.status === "loading"}
+              signedIn={signedIn}
+              onLineClick={selectLinesFromAnalysis}
+              onRevealDir={revealInTree}
+            />
+          ) : (
+            <RepoOverview repo={repo} suggested={suggested} onOpen={selectFile} />
+          )}
+        </section>
+
+        <section id="panel-code" role="tabpanel" aria-labelledby="panel-tab-code" className="ws-code" data-active={mobileTab === "code"}>
           {path ? (
             <CodeViewer
               path={path}
@@ -258,32 +463,25 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
               error={file.error}
               highlight={highlight}
               onLineSelect={selectLines}
-              onRevealDir={revealInTree}
               onRetry={() => setFileAttempt((n) => n + 1)}
+              onBackToAnalysis={
+                fromAnalysis
+                  ? () => {
+                      setFromAnalysis(false);
+                      setMobileTab("analysis");
+                    }
+                  : undefined
+              }
             />
           ) : (
-            <RepoOverview repo={repo} suggested={suggested} onOpen={selectFile} />
+            <div className="px-4 py-6">
+              <p>No file open. Choose one in Files.</p>
+              <Button variant="secondary" size="sm" className="mt-4" onClick={() => setMobileTab("files")}>
+                Open the file list
+              </Button>
+            </div>
           )}
         </section>
-
-        <aside
-          className={cn(
-            "min-h-0 w-full shrink-0 border-l border-border bg-card/40 lg:w-[400px] xl:w-[480px] 2xl:w-[560px]",
-            mobileTab === "analysis" ? "block" : "hidden",
-            "lg:block",
-          )}
-        >
-          <AnalysisPanel
-            key={file.data ? `${file.data.path}@${file.data.sha}` : "none"}
-            owner={repo.owner}
-            repo={repo.name}
-            gitRef={gitRef}
-            file={file.data}
-            fileLoading={file.status === "loading"}
-            signedIn={signedIn}
-            onLineClick={selectLines}
-          />
-        </aside>
       </div>
     </div>
   );
@@ -292,51 +490,45 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
 function RepoOverview({ repo, suggested, onOpen }: { repo: RepoInfo; suggested: string[]; onOpen: (p: string) => void }) {
   return (
     <div className="h-full overflow-auto">
-      <div className="mx-auto max-w-2xl px-6 py-12">
-        <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={repo.ownerAvatarUrl} alt="" className="size-10 rounded-xl" width={40} height={40} />
-          <div>
-            <h1 className="text-xl font-semibold">{repo.fullName}</h1>
-            <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><Star className="size-3.5" />{formatNumber(repo.stars)} stars</span>
-              <span className="flex items-center gap-1"><GitFork className="size-3.5" />{formatNumber(repo.forks)} forks</span>
-              {repo.license ? <span className="flex items-center gap-1"><Scale className="size-3.5" />{repo.license}</span> : null}
-            </div>
-          </div>
-        </div>
-        {repo.description ? <p className="mt-5 text-muted-foreground">{repo.description}</p> : null}
+      <article className="max-w-[calc(68ch+80px)] px-4 pt-5 pb-12 lg:px-10 lg:pt-8">
+        <h1 className="doc-title font-mono font-normal">{repo.fullName}</h1>
+        {repo.description ? <p className="mt-3 text-ink-muted">{repo.description}</p> : null}
+        <p className="caption mt-3">
+          {[`${formatNumber(repo.stars)} stars`, `${formatNumber(repo.forks)} forks`, repo.license].filter(Boolean).join(" · ")}
+        </p>
+        <hr className="accent-rule" />
         {repo.topics.length ? (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {repo.topics.slice(0, 10).map((t) => (
-              <span key={t} className="rounded-full bg-accent px-2.5 py-0.5 text-xs text-accent-foreground">{t}</span>
-            ))}
-          </div>
+          <p className="caption">
+            <span className="mr-3">Topics</span>
+            <span className="font-mono font-normal normal-case tracking-normal text-ink-muted">{repo.topics.slice(0, 10).join(" · ")}</span>
+          </p>
         ) : null}
 
-        <div className="mt-10 rounded-2xl border border-border bg-card p-6">
-          <div className="flex items-center gap-2 font-medium">
-            <BookOpen className="size-4 text-primary" /> Where to start
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pick a file from the tree, or open one of these. Then choose an analysis mode on the right.
-          </p>
+        <section className="section-ruled mt-8">
+          <h2 className="section-label">Where to start</h2>
           {suggested.length ? (
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {suggested.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => onOpen(p)}
-                  className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-left font-mono text-[13px] hover:border-primary/50 hover:bg-muted"
-                >
-                  <FileIcon path={p} />
-                  <span className="truncate">{p}</span>
-                </button>
+            <ol className="ruled-list">
+              {suggested.map((p, i) => (
+                <li key={p}>
+                  <button
+                    onClick={() => onOpen(p)}
+                    className="row-hover grid w-full cursor-pointer grid-cols-[40px_20px_minmax(0,1fr)] items-center gap-x-2 py-3 text-left"
+                  >
+                    <span aria-hidden className="font-mono text-[13px] text-label tabular">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <FileIcon path={p} />
+                    <span className="row-name truncate font-mono text-[15px]">{p}</span>
+                  </button>
+                </li>
               ))}
-            </div>
+            </ol>
           ) : null}
-        </div>
-      </div>
+          <p className={cn("text-ink-muted", suggested.length ? "mt-4" : "")}>
+            Pick any file in the tree. The analysis opens here, the code on the right.
+          </p>
+        </section>
+      </article>
     </div>
   );
 }

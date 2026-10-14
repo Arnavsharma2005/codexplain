@@ -6,8 +6,8 @@ import { Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
 import { apiSend, ApiClientError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
 
+/** Save / Saved: the accessible name is the visible label (no aria-label, no tooltip). */
 export function StarButton({
   owner,
   repo,
@@ -42,11 +42,9 @@ export function StarButton({
   }
 
   return (
-    <Tooltip content={starred ? "Remove from saved" : "Save to dashboard"}>
-      <Button variant="outline" size="sm" onClick={toggle} disabled={busy} aria-pressed={starred}>
-        {starred ? <BookmarkCheck className="text-primary" /> : <Bookmark />}
-        <span className="hidden sm:inline">{starred ? "Saved" : "Save"}</span>
-      </Button>
-    </Tooltip>
+    <Button variant="secondary" size="sm" onClick={toggle} disabled={busy} aria-busy={busy || undefined} aria-pressed={starred} className="px-2 sm:px-3">
+      {starred ? <BookmarkCheck className="hidden sm:block" aria-hidden /> : <Bookmark className="hidden sm:block" aria-hidden />}
+      {starred ? "Saved" : "Save"}
+    </Button>
   );
 }

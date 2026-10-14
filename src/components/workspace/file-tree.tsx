@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, Folder, FolderOpen, RefreshCw, Search, X } from "lucide-react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ChevronRight, Folder, FolderOpen, X } from "lucide-react";
 import type { TreeEntry } from "@/lib/github/types";
 import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,17 +19,23 @@ type Props = {
   revealDir: string | null;
   onSelect: (path: string) => void;
   onRetry: () => void;
+  /** The "Go to file" input, focused by the workspace's "/" shortcut. */
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Escape in the filter: the workspace returns focus to where it was before "/". */
+  onEscape?: () => void;
 };
 
 const MAX_RESULTS = 100;
 
-export function FileTree({ entries, loading, error, truncated, activePath, revealDir, onSelect, onRetry }: Props) {
+export function FileTree({ entries, loading, error, truncated, activePath, revealDir, onSelect, onRetry, inputRef, onEscape }: Props) {
   const index = useMemo(() => (entries ? buildTreeIndex(entries) : null), [entries]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const ownInputRef = useRef<HTMLInputElement>(null);
+  const filterRef = inputRef ?? ownInputRef;
   const listRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
   // Keep the active file's (or revealed folder's) ancestors expanded. Adjusting
   // state during render when inputs change avoids an extra effect pass.
@@ -47,20 +53,6 @@ export function FileTree({ entries, loading, error, truncated, activePath, revea
       setExpanded(next);
     }
   }
-
-  // "/" focuses the file filter from anywhere in the workspace.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
-      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   useEffect(() => {
     if (!activePath || query) return;
@@ -91,7 +83,8 @@ export function FileTree({ entries, loading, error, truncated, activePath, revea
   function onFilterKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
       setQuery("");
-      e.currentTarget.blur();
+      if (onEscape) onEscape();
+      else e.currentTarget.blur();
     } else if (results?.length) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -110,13 +103,15 @@ export function FileTree({ entries, loading, error, truncated, activePath, revea
     }
   }
 
+  const optionId = (i: number) => `${listboxId}-opt-${i}`;
+  const showingResults = !!results && results.length > 0;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-border p-2">
+      <div className="border-b border-hairline p-3">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
-            ref={inputRef}
+            ref={filterRef}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -125,66 +120,82 @@ export function FileTree({ entries, loading, error, truncated, activePath, revea
             onKeyDown={onFilterKey}
             placeholder="Go to file"
             aria-label="Filter files"
+            role="combobox"
+            aria-expanded={showingResults}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={showingResults ? optionId(cursor) : undefined}
             disabled={!index}
-            className="h-8 w-full rounded-lg border border-input bg-background pl-8 pr-8 text-[13px] outline-none placeholder:text-muted-foreground/80 focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="h-9 w-full border-2 border-ink bg-paper-raised pl-3 pr-9 font-mono text-[13px] text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
           />
           {query ? (
             <button
               aria-label="Clear filter"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-1 top-1/2 inline-flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center text-ink-muted hover:text-ink pointer-coarse:size-11"
             >
-              <X className="size-3.5" />
+              <X className="size-4" aria-hidden />
             </button>
           ) : (
-            <Kbd className="absolute right-2 top-1/2 -translate-y-1/2">/</Kbd>
+            <Kbd className="absolute right-2 top-1/2 -translate-y-1/2" aria-hidden>
+              /
+            </Kbd>
           )}
         </div>
       </div>
 
-      <div ref={listRef} className="min-h-0 flex-1 overflow-auto py-1 text-[13px]" role="tree" aria-label="Repository files">
+      <div ref={listRef} className="min-h-0 flex-1 overflow-auto py-1">
         {loading ? (
           <TreeSkeleton />
         ) : error ? (
-          <div className="flex flex-col items-center gap-3 px-4 py-10 text-center text-sm text-muted-foreground">
-            <AlertTriangle className="size-5 text-warning" />
-            <p>{error}</p>
-            <Button size="sm" variant="outline" onClick={onRetry}>
-              <RefreshCw /> Retry
+          <div className="px-4 py-6">
+            <p className="flex items-start gap-2 text-ink">
+              <AlertTriangle className="mt-1 size-4 shrink-0 text-danger" aria-hidden />
+              {error}
+            </p>
+            <Button size="sm" variant="secondary" className="mt-4" onClick={onRetry}>
+              Retry
             </Button>
           </div>
         ) : results ? (
           results.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">No files match “{query}”.</p>
+            <p className="meta px-4 py-6">No files match “{query}”.</p>
           ) : (
-            results.map((path, i) => (
-              <button
-                key={path}
-                onClick={() => {
-                  onSelect(path);
-                  setQuery("");
-                }}
-                onMouseEnter={() => setCursor(i)}
-                className={cn(
-                  "flex w-full items-center gap-2 px-3 py-1 text-left",
-                  i === cursor ? "bg-accent text-accent-foreground" : "hover:bg-muted",
-                )}
-              >
-                <FileIcon path={path} />
-                <span className="min-w-0 truncate">
-                  <span className="font-medium">{baseName(path)}</span>
-                  <span className="ml-2 text-muted-foreground">{path.slice(0, -baseName(path).length - 1)}</span>
-                </span>
-              </button>
-            ))
+            <div id={listboxId} role="listbox" aria-label="Matching files">
+              {results.map((path, i) => (
+                <div
+                  key={path}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === cursor}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onSelect(path);
+                    setQuery("");
+                  }}
+                  onMouseEnter={() => setCursor(i)}
+                  className={cn("tree-row pl-3")}
+                >
+                  <FileIcon path={path} />
+                  <span className="min-w-0 truncate">
+                    <span>{baseName(path)}</span>
+                    <span className="ml-2 text-ink-muted">{path.slice(0, -baseName(path).length - 1)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
           )
         ) : index ? (
-          <TreeLevel dir="" depth={0} index={index} expanded={expanded} activePath={activePath} onToggle={toggle} onSelect={onSelect} />
-        ) : null}
+          <div role="tree" aria-label="Repository files">
+            <TreeLevel dir="" depth={0} index={index} expanded={expanded} activePath={activePath} onToggle={toggle} onSelect={onSelect} />
+          </div>
+        ) : (
+          <div role="tree" aria-label="Repository files" />
+        )}
       </div>
 
       {truncated ? (
-        <p className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+        <p className="meta border-t border-hairline px-3 py-2 text-warning">
           This repository is very large, so GitHub returned a partial file list.
         </p>
       ) : null}
@@ -218,13 +229,13 @@ const TreeLevel = memo(function TreeLevel({
           const open = expanded.has(item.path);
           return (
             <div key={item.path} role="treeitem" aria-expanded={open} aria-selected={false}>
-              <button
-                onClick={() => onToggle(item.path)}
-                style={pad}
-                className="flex w-full items-center gap-1.5 py-[3px] pr-2 text-left hover:bg-muted"
-              >
-                <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
-                {open ? <FolderOpen className="size-4 shrink-0 text-primary/80" /> : <Folder className="size-4 shrink-0 text-primary/80" />}
+              <button onClick={() => onToggle(item.path)} style={pad} className="tree-row">
+                <ChevronRight className={cn("size-3 shrink-0 text-ink-muted motion-safe:transition-transform", open && "rotate-90")} aria-hidden />
+                {open ? (
+                  <FolderOpen className="size-4 shrink-0 text-ink-muted" aria-hidden />
+                ) : (
+                  <Folder className="size-4 shrink-0 text-ink-muted" aria-hidden />
+                )}
                 <span className="truncate">{baseName(item.path)}</span>
               </button>
               {open ? (
@@ -252,10 +263,7 @@ const TreeLevel = memo(function TreeLevel({
             data-path={item.path}
             onClick={() => onSelect(item.path)}
             style={{ paddingLeft: 8 + depth * 14 + 18 }}
-            className={cn(
-              "flex w-full items-center gap-1.5 py-[3px] pr-2 text-left",
-              active ? "bg-accent font-medium text-accent-foreground" : "hover:bg-muted",
-            )}
+            className="tree-row"
           >
             <FileIcon path={item.path} />
             <span className="truncate">{baseName(item.path)}</span>
@@ -269,11 +277,11 @@ const TreeLevel = memo(function TreeLevel({
 function TreeSkeleton() {
   const widths = [60, 45, 70, 50, 38, 64, 55, 42, 68, 48, 58, 36];
   return (
-    <div className="space-y-2 px-3 py-2" aria-busy="true" aria-label="Loading files">
+    <div className="px-3" aria-busy="true" aria-label="Loading files">
       {widths.map((w, i) => (
-        <div key={i} className="flex items-center gap-2" style={{ paddingLeft: i % 3 === 0 ? 0 : 16 }}>
-          <Skeleton className="size-4" />
-          <Skeleton className="h-3.5" style={{ width: `${w}%` }} />
+        <div key={i} className="flex h-8 items-center gap-2 pointer-coarse:h-11" style={{ paddingLeft: i % 3 === 0 ? 0 : 16 }}>
+          <Skeleton className="size-3.5" />
+          <Skeleton className="h-2.5" style={{ width: `${w}%` }} />
         </div>
       ))}
     </div>

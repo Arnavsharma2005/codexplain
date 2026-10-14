@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getGitHubToken, getSession } from "@/lib/auth";
 import { GitHubError, getRefs, getRepo } from "@/lib/github/client";
 import { splitRefAndPath } from "@/lib/github/parse-url";
@@ -35,6 +35,8 @@ export default async function RepoPage({ params, searchParams }: Props) {
   try {
     [info, refs] = await Promise.all([getRepo(owner, repo, { token }), getRefs(owner, repo, { token })]);
   } catch (err) {
+    // Missing and private repositories both arrive as NOT_FOUND; answer with a real 404 before anything streams.
+    if (err instanceof GitHubError && err.code === "NOT_FOUND") notFound();
     if (err instanceof GitHubError) {
       return <RepoError owner={owner} repo={repo} code={err.code} message={err.message} signedIn={!!token} />;
     }
