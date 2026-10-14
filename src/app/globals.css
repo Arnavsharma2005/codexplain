@@ -17,7 +17,7 @@
   --orange: #f07a2e; --on-orange: #0e1c3a; --label: #8f4520; --focus: #0e1c3a;
   --danger: #9b2a1a; --success: #2d6a3a; --warning: #7a4d00;
   --ref-hover: #f7cfa6; --selection: #f6d98a;
-  /* Selected tree / filter row bar: ink on paper (orange fails 1.4.11 on sunk paper), orange at night. */
+  /* Selected tree / filter row bar: ink on paper (orange fails 1.4.11 on sunk paper), orange in dark. */
   --row-bar: #0e1c3a;
 
   /* Poster accents (wavz night posters). Fills carry text only in their on-* colour;
@@ -52,41 +52,24 @@
   --dur-fast: 120ms; --dur-base: 200ms; --ease-out: cubic-bezier(.2,.8,.2,1); --ease-draw: cubic-bezier(.6,0,.2,1);
 }
 
-/* Night, two candidates behind one switch: <html data-night="ink"|"charcoal"> (default ink).
-   No grain at night, hairlines instead of heavy rules. Both share the navy editor tokens above. */
-
-/* A. Midnight ink */
+/* Dark: charcoal and ember. Neutral greys, accents only orange and teal; no grain,
+   hairlines instead of heavy rules. The navy editor tokens above go darker and neutral. */
 .dark {
-  --paper: #0b1220; --paper-raised: #182339; --paper-sunk: #1b2740;
-  --sheet: #141f33; --sheet-edge: #223049; --panel: #111a2c;
-  --ink: #f2e5c3; --ink-muted: #b5ab93; --hairline: #223049; --rule: #2c3a56; --rule-w: 1px; --edge: #6b7a99;
-  --label: #eda06a; --focus: #f07a2e;
-  --danger: #f39c84; --success: #9ccf86; --warning: #f2c14e;
-  --ref-hover: #4b3632; --selection: #33466b;
-  --row-bar: #f07a2e;
-  --on-orange: #0b1220;
-  --teal-ink: #8fcbcf; --moon-ink: #f2c14e; --jungle-ink: #9ccf86;
-  --plate: #080d18; --plate-tabs: #0d1526; --plate-border: #223049; --plate-rule: #182339;
-  --plate-hover: #16213a; --plate-hl: #111b30;
-  --toast-bg: #f2e5c3; --toast-fg: #0b1220; --toast-hover: #e2d2a8; --toast-icon: #a33d12; --toast-focus: #0b1220;
-}
-
-/* B. Charcoal and ember: neutral greys, accents only orange and teal. */
-.dark[data-night="charcoal"] {
   --paper: #131316; --paper-raised: #232329; --paper-sunk: #26262d;
   --sheet: #1b1b20; --sheet-edge: #2a2a31; --panel: #1b1b20;
-  --ink-muted: #b2aa98; --hairline: #2a2a31; --rule: #34343c; --edge: #77777f;
-  --label: #f0a06c;
+  --ink: #f2e5c3; --ink-muted: #b2aa98; --hairline: #2a2a31; --rule: #34343c; --rule-w: 1px; --edge: #77777f;
+  --label: #f0a06c; --focus: #f07a2e;
+  --danger: #f39c84; --success: #7fcac4; --warning: #f5b47e;
   --ref-hover: #4a3326; --selection: #3d3d47;
+  --row-bar: #f07a2e;
   --on-orange: #131316;
   /* Moon and jungle fold into the two accents: a light ember and a light teal. */
   --teal: #2f7f86; --on-teal: #fffdf7; --teal-ink: #7fcac4;
   --moon: #f5b47e; --on-moon: #131316; --moon-ink: #f5b47e;
   --jungle: #7fcac4; --on-jungle: #131316; --jungle-ink: #7fcac4;
-  --success: #7fcac4; --warning: #f5b47e;
   --plate: #0e0e11; --plate-tabs: #161619; --plate-border: #2a2a31; --plate-rule: #222228;
   --plate-hover: #202026; --plate-hl: #1a1a20; --plate-selection: #34343e;
-  --toast-fg: #131316; --toast-focus: #131316;
+  --toast-bg: #f2e5c3; --toast-fg: #131316; --toast-hover: #e2d2a8; --toast-icon: #a33d12; --toast-focus: #131316;
 }
 
 @theme inline {
@@ -411,6 +394,6 @@
 @media (pointer: coarse) { .tree-row { min-height: 44px; } }
 }
 
-/* Night controls: a quiet edge (>= 3:1 on every night surface) instead of a cream 2px line.
+/* Dark controls: a quiet edge (>= 3:1 on every dark surface) instead of a cream 2px line.
    Unlayered so it beats the border-ink utility. */
 .dark .border-ink { border-color: var(--edge); }
