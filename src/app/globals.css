@@ -37,6 +37,12 @@
   --plate-label: #f2955a; --plate-rule: #1d2a44; --plate-hover: #1a2742; --plate-hl: #172440;
   --plate-selection: #2a3d63; --plate-focus: #f2955a; --plate-bar: #f07a2e;
 
+  /* The import map sits on the navy plate too, so its groups use the bright poster set.
+     --map-dep / --map-uses: blast radius (what depends on the file / what it uses). */
+  --map-bg: var(--plate); --map-fg: #f2e5c3; --map-edge: #8794ab; --map-grid: #22304d;
+  --map-1: #f07a2e; --map-2: #3fa9ae; --map-3: #8fd19e; --map-4: #f2c14e; --map-5: #f5b47e; --map-6: #a3adc0;
+  --map-dep: #f07a2e; --map-uses: #6cc8cf;
+
   --shiki-background: transparent;
   --shiki-foreground: #e3ddcd;
   --shiki-token-keyword: #f2955a;
@@ -69,6 +75,8 @@
   --jungle: #7fcac4; --on-jungle: #131316; --jungle-ink: #7fcac4;
   --plate: #0e0e11; --plate-tabs: #161619; --plate-border: #2a2a31; --plate-rule: #222228;
   --plate-hover: #202026; --plate-hl: #1a1a20; --plate-selection: #34343e;
+  --map-bg: #1b1b20; --map-edge: #b2aa98; --map-grid: #2a2a31;
+  --map-2: #2f7f86; --map-3: #7fcac4; --map-4: #f5b47e; --map-5: #f0a06c; --map-6: #b2aa98; --map-uses: #2f7f86;
   --toast-bg: #f2e5c3; --toast-fg: #131316; --toast-hover: #e2d2a8; --toast-icon: #a33d12; --toast-focus: #131316;
 }
 
@@ -222,6 +230,10 @@
 .plate-tab svg { color: var(--plate-label); }
 .plate-meta { font: 500 12px/16px var(--font-sans); letter-spacing: .04em; color: var(--plate-muted); font-variant-numeric: tabular-nums; }
 .plate-meta b { font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--plate-label); margin-right: 6px; }
+
+/* Repo intelligence import map: the plate with a faint instrument dot grid. */
+.intel-map { background: var(--map-bg) radial-gradient(var(--map-grid) 1px, transparent 1.5px) 0 0 / 22px 22px; color: var(--map-fg); }
+.intel-map .plate-tabstrip { align-items: center; }
 
 .code-view pre.shiki { margin: 0; padding: 10px 0 40px; background: transparent !important; color: var(--plate-fg) !important;
   font: 400 14px/24px var(--font-mono); counter-reset: line; min-width: max-content; tab-size: 4; }

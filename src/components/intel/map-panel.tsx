@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { computeLayout } from "./layout";
 
-// Group colours: the lead accent, the poster accents, then neutrals.
-const GROUP_COLORS = ["var(--orange)", "var(--teal)", "var(--jungle)", "var(--moon)", "var(--label)", "var(--ink-muted)"];
-const OTHER = "var(--hairline)";
+// Group colours: the map tokens (bright poster accents on the plate), then a neutral.
+const GROUP_COLORS = ["var(--map-1)", "var(--map-2)", "var(--map-3)", "var(--map-4)", "var(--map-5)", "var(--map-6)"];
+const OTHER = "var(--map-edge)";
 
 type View = { x: number; y: number; k: number };
 
@@ -66,19 +66,19 @@ export function MapPanel({ graph, repo, sha, onAsk }: { graph: GraphResponse; re
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2" aria-label="Legend">
-          {layout.groups.slice(0, GROUP_COLORS.length).map((g) => (
-            <span key={g} className="meta flex items-center gap-1.5">
-              <span aria-hidden className="inline-block size-2.5" style={{ background: colorOf(g) }} />
-              <span className="font-mono text-[13px]">{g}</span>
+        <div className="intel-map on-plate border-2 border-ink dark:border-edge">
+          <div className="plate-tabstrip flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2" aria-label="Legend">
+            {layout.groups.slice(0, GROUP_COLORS.length).map((g) => (
+              <span key={g} className="flex items-center gap-1.5 font-mono text-[13px] text-plate-fg">
+                <span aria-hidden className="inline-block size-2.5" style={{ background: colorOf(g) }} />
+                {g}
+              </span>
+            ))}
+            <span className="plate-meta ml-auto">
+              {layout.visible.length} of {graph.files.length} files
+              {layout.isolated ? ` · ${layout.isolated} with no imports hidden` : ""}
             </span>
-          ))}
-          <span className="meta">
-            {layout.visible.length} of {graph.files.length} files
-            {layout.isolated ? ` · ${layout.isolated} with no imports hidden` : ""}
-          </span>
-        </div>
-        <div className="mt-3 border-2 border-ink bg-sheet dark:border-edge">
+          </div>
           <svg
             ref={svgRef}
             role="img"
@@ -114,7 +114,7 @@ export function MapPanel({ graph, repo, sha, onAsk }: { graph: GraphResponse; re
                 const s = nodeById.get(a)!;
                 const t = nodeById.get(b)!;
                 const hot = selected !== null && (a === selected || b === selected || (depthOf.get(a)?.kind === "dep" && depthOf.has(b)));
-                const stroke = !hot ? "var(--ink-muted)" : b === selected || depthOf.get(a)?.kind === "dep" ? "var(--orange)" : "var(--teal)";
+                const stroke = !hot ? "var(--map-edge)" : b === selected || depthOf.get(a)?.kind === "dep" ? "var(--map-dep)" : "var(--map-uses)";
                 return (
                   <line
                     key={i}
@@ -124,7 +124,7 @@ export function MapPanel({ graph, repo, sha, onAsk }: { graph: GraphResponse; re
                     y2={t.y}
                     stroke={stroke}
                     strokeWidth={(hot ? 1.6 : 0.8) / view.k}
-                    opacity={hot ? 1 : selected === null ? 0.3 : 0.12}
+                    opacity={hot ? 1 : selected === null ? 0.35 : 0.15}
                   />
                 );
               })}
@@ -134,7 +134,7 @@ export function MapPanel({ graph, repo, sha, onAsk }: { graph: GraphResponse; re
                 const rel = depthOf.get(n.id);
                 const isSel = n.id === selected;
                 const dim = selected !== null && !isSel && !rel;
-                const fill = isSel ? "var(--ink)" : rel ? (rel.kind === "dep" ? "var(--orange)" : "var(--teal)") : colorOf(n.group);
+                const fill = isSel ? "var(--map-fg)" : rel ? (rel.kind === "dep" ? "var(--map-dep)" : "var(--map-uses)") : colorOf(n.group);
                 return (
                   <circle
                     key={n.id}
@@ -143,8 +143,8 @@ export function MapPanel({ graph, repo, sha, onAsk }: { graph: GraphResponse; re
                     cy={n.y}
                     r={isSel ? n.r + 3 : n.r}
                     fill={fill}
-                    opacity={dim ? 0.25 : rel ? Math.max(0.45, 1 - (rel.depth - 1) * 0.2) : 1}
-                    stroke="var(--sheet)"
+                    opacity={dim ? 0.3 : rel ? Math.max(0.5, 1 - (rel.depth - 1) * 0.2) : 1}
+                    stroke="var(--map-bg)"
                     strokeWidth={1 / view.k}
                     className="cursor-pointer"
                   >
@@ -162,9 +162,9 @@ export function MapPanel({ graph, repo, sha, onAsk }: { graph: GraphResponse; re
                     x={n.x! + n.r + 3}
                     y={n.y! + 4}
                     fontSize={12 / view.k}
-                    fill="var(--ink)"
+                    fill="var(--map-fg)"
                     paintOrder="stroke"
-                    stroke="var(--sheet)"
+                    stroke="var(--map-bg)"
                     strokeWidth={3 / view.k}
                     className="font-mono"
                   >
