@@ -41,6 +41,8 @@ export const POST = handler(async (req: Request) => {
   const token = await getGitHubToken();
 
   // Always re-read the file server-side: never trust code sent by the client.
+  // The tree (prompt context only) loads alongside so it never delays the first token.
+  const treePromise = getTree(owner, repo, ref, { token }).catch(() => null);
   const [info, file] = await Promise.all([getRepo(owner, repo, { token }), getFile(owner, repo, ref, path, { token })]);
   if (file.content == null) {
     throw new ApiError(
@@ -85,7 +87,7 @@ export const POST = handler(async (req: Request) => {
     );
   }
 
-  const tree = await getTree(owner, repo, ref, { token }).catch(() => null);
+  const tree = await treePromise;
   const language = detectLanguage(file.path);
   const config = MODES[mode];
   const system = systemPrompt(mode);

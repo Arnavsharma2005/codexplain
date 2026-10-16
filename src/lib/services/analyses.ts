@@ -2,12 +2,25 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { AnalysisMode } from "@prisma/client";
 import { db } from "@/lib/db";
+import type { CachedResponse } from "@/lib/api-types";
+import { findRepository } from "@/lib/services/repos";
 
 export async function findCachedAnalyses(repositoryId: string, path: string, fileSha: string) {
   return db.analysis.findMany({
     where: { repositoryId, path, fileSha },
     select: { id: true, mode: true, content: true, model: true, createdAt: true },
   });
+}
+
+/** Analyses already generated for this exact file version, keyed by mode. */
+export async function loadCachedAnalyses(owner: string, repo: string, path: string, fileSha: string): Promise<CachedResponse> {
+  const repository = await findRepository(owner, repo);
+  const body: CachedResponse = { analyses: {} };
+  if (!repository) return body;
+  for (const row of await findCachedAnalyses(repository.id, path, fileSha)) {
+    body.analyses[row.mode] = { id: row.id, content: row.content, model: row.model, createdAt: row.createdAt.toISOString() };
+  }
+  return body;
 }
 
 export async function findCachedAnalysis(repositoryId: string, path: string, fileSha: string, mode: AnalysisMode) {

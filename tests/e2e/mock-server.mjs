@@ -3,6 +3,8 @@
 import http from "node:http";
 
 const PORT = Number(process.env.MOCK_PORT ?? 4010);
+// Simulated GitHub API round-trip time, used by scripts/bench.mjs. Off for the e2e suite.
+const LATENCY_MS = Number(process.env.MOCK_LATENCY_MS ?? 0);
 
 const FILES = {
   "README.md": "# Widgets\n\nA tiny demo library.\n",
@@ -95,6 +97,11 @@ function gemini(req, res, model, body) {
 }
 
 const server = http.createServer((req, res) => {
+  if (LATENCY_MS) setTimeout(() => handle(req, res), LATENCY_MS);
+  else handle(req, res);
+});
+
+function handle(req, res) {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = decodeURIComponent(url.pathname);
 
@@ -141,6 +148,6 @@ const server = http.createServer((req, res) => {
     });
   }
   return json(res, 404, { message: "Not Found" });
-});
+}
 
 server.listen(PORT, "127.0.0.1", () => console.log(`mock server on :${PORT}`));

@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Code2 } from "lucide-react";
+import { formatLineHash } from "@/lib/line-refs";
 import { getSharedAnalysis } from "@/lib/services/analyses";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Button } from "@/components/ui/button";
-import { SharedMarkdown } from "./shared-markdown";
+import { MarkdownView } from "@/components/markdown-view";
 
 const MODE_LABEL = { OVERVIEW: "Overview", DEEP_DIVE: "Deep dive", REVIEW: "Code review" } as const;
 
@@ -59,7 +60,16 @@ export default async function SharedAnalysisPage({ params }: PageProps<"/a/[slug
         </Button>
 
         <div className="mt-10">
-          <SharedMarkdown content={a.content} codeHref={codeHref} />
+          {/* Line references open the workspace at those lines. */}
+          <MarkdownView
+            className="is-reading"
+            content={a.content}
+            renderLineRef={(range, _href, children) => (
+              <Link href={`${codeHref}${formatLineHash(range)}`} className="line-ref">
+                {children}
+              </Link>
+            )}
+          />
         </div>
 
         <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t-2 border-ink pt-4">

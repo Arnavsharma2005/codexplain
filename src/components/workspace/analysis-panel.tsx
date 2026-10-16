@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
 import { AlertTriangle, Check, Copy, Loader2, RotateCcw, Share2, Square } from "lucide-react";
@@ -8,7 +9,6 @@ import type { AnalysisModeKey, CachedResponse, FileResponse } from "@/lib/api-ty
 import { ApiClientError, apiGet, apiSend, streamNdjson } from "@/lib/api-client";
 import type { LineRange } from "@/lib/line-refs";
 import { languageLabel } from "@/lib/languages";
-import { Markdown } from "@/components/markdown";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { GitHubIcon } from "@/components/icons";
@@ -16,6 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatBytes, plural, timeAgo } from "@/lib/utils";
 import { useCopy } from "./use-copy";
+
+// The Markdown parser only loads once there is an analysis to show.
+const Markdown = dynamic(() => import("@/components/markdown").then((m) => m.Markdown));
 
 const MODES: { key: AnalysisModeKey; label: string; blurb: string; tone: string }[] = [
   { key: "OVERVIEW", label: "Overview", tone: "mode-overview", blurb: "A quick summary of what this file does and how it fits in." },
@@ -40,6 +43,9 @@ type Props = {
   path: string;
   file: FileResponse | null;
   fileLoading: boolean;
+  /** Saved analyses for `file`, loaded with the page; null means the panel fetches them. */
+  initialCached: CachedResponse["analyses"] | null;
+  initialRemaining: number | null;
   signedIn: boolean;
   onLineClick: (range: LineRange) => void;
   onRevealDir: (dir: string) => void;
@@ -50,6 +56,17 @@ const EMPTY: Record<AnalysisModeKey, ModeState> = {
   DEEP_DIVE: { status: "idle" },
   REVIEW: { status: "idle" },
 };
+
+/** Fills modes that haven't started yet with their saved analyses. */
+function withCached(prev: Record<AnalysisModeKey, ModeState>, analyses: CachedResponse["analyses"]) {
+  const next = { ...prev };
+  for (const [m, a] of Object.entries(analyses) as [AnalysisModeKey, NonNullable<(typeof analyses)[AnalysisModeKey]>][]) {
+    if (next[m].status === "idle") {
+      next[m] = { status: "done", content: a.content, id: a.id, cached: true, createdAt: a.createdAt, model: a.model };
+    }
+  }
+  return next;
+}
 
 function statusText(state: ModeState, label: string) {
   const lower = label.toLowerCase();
@@ -68,11 +85,24 @@ function statusText(state: ModeState, label: string) {
 }
 
 /** The analysis document: file head, mode tabs, the reading itself and its colophon bar. */
-export function AnalysisPanel({ owner, repo, gitRef, path, file, fileLoading, signedIn, onLineClick, onRevealDir }: Props) {
+export function AnalysisPanel({
+  owner,
+  repo,
+  gitRef,
+  path,
+  file,
+  fileLoading,
+  initialCached,
+  initialRemaining,
+  signedIn,
+  onLineClick,
+  onRevealDir,
+}: Props) {
   const [mode, setMode] = useState<AnalysisModeKey>("OVERVIEW");
-  const [states, setStates] = useState<Record<AnalysisModeKey, ModeState>>(EMPTY);
-  const [checkingCache, setCheckingCache] = useState(() => !!file && file.content != null);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  const [states, setStates] = useState<Record<AnalysisModeKey, ModeState>>(() => (initialCached ? withCached(EMPTY, initialCached) : EMPTY));
+  const [seededCache] = useState(() => !!initialCached);
+  const [checkingCache, setCheckingCache] = useState(() => !initialCached && !!file && file.content != null);
+  const [remaining, setRemaining] = useState<number | null>(initialRemaining);
   const [sharing, setSharing] = useState(false);
   const controllers = useRef<Partial<Record<AnalysisModeKey, AbortController>>>({});
   const statesRef = useRef(states);
@@ -90,37 +120,29 @@ export function AnalysisPanel({ owner, repo, gitRef, path, file, fileLoading, si
   // The parent remounts this panel per file version (key), so state starts fresh.
   // Load analyses already generated for this exact file version.
   useEffect(() => {
-    if (!file || file.content == null) return;
+    if (seededCache || !file || file.content == null) return;
     const ctrl = new AbortController();
     const qs = new URLSearchParams({ owner, repo, ref: gitRef, path: file.path, sha: file.sha });
     apiGet<CachedResponse>(`/api/analyze/cached?${qs}`, ctrl.signal)
       .then(({ analyses }) => {
-        setStates((prev) => {
-          const next = { ...prev };
-          for (const [m, a] of Object.entries(analyses) as [AnalysisModeKey, NonNullable<(typeof analyses)[AnalysisModeKey]>][]) {
-            if (next[m].status === "idle") {
-              next[m] = { status: "done", content: a.content, id: a.id, cached: true, createdAt: a.createdAt, model: a.model };
-            }
-          }
-          return next;
-        });
+        setStates((prev) => withCached(prev, analyses));
       })
       .catch(() => undefined)
       .finally(() => {
         if (!ctrl.signal.aborted) setCheckingCache(false);
       });
     return () => ctrl.abort();
-  }, [file, owner, repo, gitRef]);
+  }, [seededCache, file, owner, repo, gitRef]);
 
   // Today's quota, for the "N left today" line under the Generate button.
   useEffect(() => {
-    if (!signedIn || !file || file.content == null) return;
+    if (!signedIn || initialRemaining != null || !file || file.content == null) return;
     const ctrl = new AbortController();
     apiGet<{ remaining: number }>("/api/me/usage", ctrl.signal)
       .then((u) => setRemaining((r) => r ?? u.remaining))
       .catch(() => undefined);
     return () => ctrl.abort();
-  }, [signedIn, file]);
+  }, [signedIn, initialRemaining, file]);
 
   useEffect(() => () => Object.values(controllers.current).forEach((c) => c?.abort()), []);
 
