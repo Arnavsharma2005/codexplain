@@ -1,4 +1,4 @@
-import { ownerSchema, repoNameSchema } from "./validation";
+import { isValidOwner, isValidRepoName } from "./names";
 
 export type ParsedGitHubUrl = {
   owner: string;
@@ -78,8 +78,8 @@ export function parseGitHubUrl(input: string): ParsedGitHubUrl | null {
 }
 
 function validate(p: ParsedGitHubUrl): ParsedGitHubUrl | null {
-  if (!ownerSchema.safeParse(p.owner).success) return null;
-  if (!repoNameSchema.safeParse(p.repo).success) return null;
+  if (!isValidOwner(p.owner)) return null;
+  if (!isValidRepoName(p.repo)) return null;
   return p;
 }
 

@@ -1,15 +1,9 @@
 import { z } from "zod";
+import { isValidOwner, isValidRepoName } from "./names";
 
-/** GitHub usernames/orgs: alphanumerics and single hyphens, max 39 chars. */
-export const ownerSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/, "Invalid repository owner");
+export const ownerSchema = z.string().refine(isValidOwner, "Invalid repository owner");
 
-/** Repository names: letters, digits, '.', '-', '_' (not '.' or '..'). */
-export const repoNameSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9._-]{1,100}$/, "Invalid repository name")
-  .refine((s) => s !== "." && s !== "..", "Invalid repository name");
+export const repoNameSchema = z.string().refine(isValidRepoName, "Invalid repository name");
 
 /** A subset of git's check-ref-format rules, enough to keep refs safe in URLs. */
 export const refSchema = z

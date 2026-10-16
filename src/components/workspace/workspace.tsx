@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Code2, ExternalLink, FileText, FolderTree, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
-import type { FileResponse } from "@/lib/api-types";
+import type { CachedResponse, FileResponse } from "@/lib/api-types";
 import { ApiClientError, apiGet } from "@/lib/api-client";
 import type { RepoInfo, RepoRefs, RepoTree } from "@/lib/github/types";
 import { formatLineHash, parseLineHash, type LineRange } from "@/lib/line-refs";
@@ -28,6 +28,13 @@ type Props = {
   initialDir: string | null;
   signedIn: boolean;
   initialStarred: boolean;
+  /** Loaded on the server for the first paint; null where that load failed and the client should fetch. */
+  initial: {
+    tree: RepoTree | null;
+    file: FileResponse | null;
+    cached: CachedResponse["analyses"] | null;
+    remaining: number | null;
+  };
 };
 
 type Load<T> = { status: "idle" | "loading" | "ready" | "error"; data: T | null; error: string | null };
@@ -48,6 +55,9 @@ const PANELS = [
   ["analysis", "Analysis", FileText],
 ] as const;
 
+const treeKeyFor = (repoQs: URLSearchParams, attempt: number) => `${repoQs}#${attempt}`;
+const fileKeyFor = (path: string, repoQs: URLSearchParams, attempt: number) => `${path}#${repoQs}#${attempt}`;
+
 function errorMessage(err: unknown) {
   return err instanceof ApiClientError ? err.message : "Something went wrong. Please try again.";
 }
@@ -63,13 +73,25 @@ function readFolded(): boolean {
   }
 }
 
-export function Workspace({ repo, refs, initialRef, initialPath, initialDir, signedIn, initialStarred }: Props) {
+export function Workspace({ repo, refs, initialRef, initialPath, initialDir, signedIn, initialStarred, initial }: Props) {
   const router = useRouter();
   const gitRef = initialRef;
+  const repoQs = useMemo(() => new URLSearchParams({ owner: repo.owner, repo: repo.name, ref: gitRef }), [repo, gitRef]);
+  // Server-rendered results seed the state; the fetch effects skip whatever key is already loaded.
+  const [seeded] = useState(() => ({
+    tree: initial.tree ? treeKeyFor(repoQs, 0) : null,
+    file: initial.file && initialPath ? fileKeyFor(initialPath, repoQs, 0) : null,
+  }));
+  const loadedTree = useRef(seeded.tree);
+  const loadedFile = useRef(seeded.file);
   const [path, setPath] = useState<string | null>(initialPath);
   const [revealDir, setRevealDir] = useState<string | null>(initialDir);
-  const [treeResult, setTreeResult] = useState<Result<RepoTree> | null>(null);
-  const [fileResult, setFileResult] = useState<Result<FileResponse> | null>(null);
+  const [treeResult, setTreeResult] = useState<Result<RepoTree> | null>(() =>
+    seeded.tree ? { key: seeded.tree, data: initial.tree, error: null } : null,
+  );
+  const [fileResult, setFileResult] = useState<Result<FileResponse> | null>(() =>
+    seeded.file ? { key: seeded.file, data: initial.file, error: null } : null,
+  );
   const [highlight, setHighlight] = useState<LineRange | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>(initialPath ? "code" : "files");
   const [folded, setFolded] = useState(false);
@@ -84,14 +106,16 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
   const returnFocus = useRef<HTMLElement | null>(null);
   const panelTabRefs = useRef<Partial<Record<MobileTab, HTMLButtonElement | null>>>({});
 
-  const repoQs = useMemo(() => new URLSearchParams({ owner: repo.owner, repo: repo.name, ref: gitRef }), [repo, gitRef]);
-
   // Line anchor from the URL (e.g. shared links ending in #L42-L50), and the remembered tree fold.
   useEffect(() => {
-    pendingHash.current = parseLineHash(window.location.hash);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- a browser-only preference, read once after hydration
+    // The hash and the fold are browser-only, so they're read once after hydration.
+    // A server-rendered file takes its highlight now; otherwise it waits for the fetch.
+    const hash = parseLineHash(window.location.hash);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (seeded.file) setHighlight(hash);
+    else pendingHash.current = hash;
     setFolded(readFolded());
-  }, []);
+  }, [seeded]);
 
   // Back/forward navigation between files.
   useEffect(() => {
@@ -104,28 +128,35 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const treeKey = `${repoQs}#${treeAttempt}`;
-  const fileKey = path ? `${path}#${repoQs}#${fileAttempt}` : null;
+  const treeKey = treeKeyFor(repoQs, treeAttempt);
+  const fileKey = path ? fileKeyFor(path, repoQs, fileAttempt) : null;
   const tree = toLoad(treeKey, treeResult);
   const file = toLoad(fileKey, fileResult);
 
   useEffect(() => {
+    if (loadedTree.current === treeKey) return;
     const ctrl = new AbortController();
     apiGet<RepoTree>(`/api/github/tree?${repoQs}`, ctrl.signal)
-      .then((data) => setTreeResult({ key: treeKey, data, error: null }))
+      .then((data) => {
+        loadedTree.current = treeKey;
+        setTreeResult({ key: treeKey, data, error: null });
+      })
       .catch((err) => {
-        if (!ctrl.signal.aborted) setTreeResult({ key: treeKey, data: null, error: errorMessage(err) });
+        if (ctrl.signal.aborted) return;
+        loadedTree.current = treeKey;
+        setTreeResult({ key: treeKey, data: null, error: errorMessage(err) });
       });
     return () => ctrl.abort();
   }, [repoQs, treeKey]);
 
   useEffect(() => {
-    if (!path || !fileKey) return;
+    if (!path || !fileKey || loadedFile.current === fileKey) return;
     const ctrl = new AbortController();
     const qs = new URLSearchParams(repoQs);
     qs.set("path", path);
     apiGet<FileResponse>(`/api/github/file?${qs}`, ctrl.signal)
       .then((data) => {
+        loadedFile.current = fileKey;
         setFileResult({ key: fileKey, data, error: null });
         if (pendingHash.current) {
           setHighlight(pendingHash.current);
@@ -133,7 +164,9 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
         }
       })
       .catch((err) => {
-        if (!ctrl.signal.aborted) setFileResult({ key: fileKey, data: null, error: errorMessage(err) });
+        if (ctrl.signal.aborted) return;
+        loadedFile.current = fileKey;
+        setFileResult({ key: fileKey, data: null, error: errorMessage(err) });
       });
     return () => ctrl.abort();
   }, [path, repoQs, fileKey]);
@@ -445,6 +478,8 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
               path={path}
               file={file.data}
               fileLoading={file.status === "loading"}
+              initialCached={file.data && file.data === initial.file ? initial.cached : null}
+              initialRemaining={file.data && file.data === initial.file ? initial.remaining : null}
               signedIn={signedIn}
               onLineClick={selectLinesFromAnalysis}
               onRevealDir={revealInTree}

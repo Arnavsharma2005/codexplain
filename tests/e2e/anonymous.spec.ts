@@ -46,6 +46,23 @@ test.describe("signed out", () => {
     await expect(page.locator(".code-view")).toContainText("createWidget");
   });
 
+  test("renders the opened file on the server and reloads it after navigating back", async ({ page }) => {
+    const fileRequests: string[] = [];
+    page.on("request", (r) => r.url().includes("/api/github/") && fileRequests.push(new URL(r.url()).pathname));
+
+    await page.goto("/r/acme/widgets?path=src%2Findex.ts");
+    await expect(page.locator(".code-view")).toContainText("export function createWidget");
+    expect(fileRequests).toEqual([]);
+
+    const tree = page.getByRole("tree", { name: "Repository files" });
+    await tree.getByRole("treeitem", { name: "utils" }).getByRole("button").click();
+    await tree.getByRole("treeitem", { name: "slugify.ts" }).click();
+    await expect(page.locator(".code-view")).toContainText("export const slugify");
+
+    await page.goBack();
+    await expect(page.locator(".code-view")).toContainText("export function createWidget");
+  });
+
   test("binary files show a friendly notice", async ({ page }) => {
     await page.goto("/r/acme/widgets?path=assets%2Flogo.png");
     await expect(page.getByText("This is a binary file")).toBeVisible();

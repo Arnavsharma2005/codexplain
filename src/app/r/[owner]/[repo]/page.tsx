@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getGitHubToken, getSession } from "@/lib/auth";
-import { GitHubError, getRefs, getRepo } from "@/lib/github/client";
+import { GitHubError, getRefs, getRepo, getTree } from "@/lib/github/client";
+import type { RepoInfo } from "@/lib/github/types";
 import { splitRefAndPath } from "@/lib/github/parse-url";
 import { ownerSchema, pathSchema, refSchema, repoNameSchema } from "@/lib/github/validation";
+import { loadCachedAnalyses } from "@/lib/services/analyses";
+import { loadFile } from "@/lib/services/files";
+import { getUsage } from "@/lib/services/quota";
 import { recordVisit } from "@/lib/services/repos";
 import { db } from "@/lib/db";
 import { Workspace } from "@/components/workspace/workspace";
@@ -64,18 +68,21 @@ export default async function RepoPage({ params, searchParams }: Props) {
   const dirParam = str(sp.dir);
   const dir = dirParam && pathSchema.safeParse(dirParam).success ? dirParam : null;
 
+  // Everything the first paint needs, fetched here in parallel instead of by the
+  // browser after hydration. A failed load is left to the client, which retries
+  // it and shows the error in place.
   const session = await getSession();
-  let starred = false;
-  if (session?.user?.id) {
-    const repository = await recordVisit(session.user.id, info).catch(() => null);
-    if (repository) {
-      const visit = await db.repoVisit.findUnique({
-        where: { userId_repositoryId: { userId: session.user.id, repositoryId: repository.id } },
-        select: { starred: true },
-      });
-      starred = visit?.starred ?? false;
-    }
-  }
+  const userId = session?.user?.id;
+  const filePromise = path ? loadFile(info.owner, info.name, ref, path, token).catch(() => null) : Promise.resolve(null);
+  const [tree, file, cached, starred, remaining] = await Promise.all([
+    getTree(info.owner, info.name, ref, { token }).catch(() => null),
+    filePromise,
+    filePromise.then((f) =>
+      f && f.content != null ? loadCachedAnalyses(info.owner, info.name, f.path, f.sha).then((c) => c.analyses).catch(() => null) : null,
+    ),
+    userId ? loadStarred(userId, info) : false,
+    userId ? getUsage(userId).then((u) => u.remaining).catch(() => null) : null,
+  ]);
 
   return (
     <Workspace
@@ -87,6 +94,18 @@ export default async function RepoPage({ params, searchParams }: Props) {
       initialDir={dir}
       signedIn={!!session?.user}
       initialStarred={starred}
+      initial={{ tree, file, cached, remaining }}
     />
   );
+}
+
+/** Records the visit for the dashboard and returns whether the user saved this repository. */
+async function loadStarred(userId: string, info: RepoInfo) {
+  const repository = await recordVisit(userId, info).catch(() => null);
+  if (!repository) return false;
+  const visit = await db.repoVisit.findUnique({
+    where: { userId_repositoryId: { userId, repositoryId: repository.id } },
+    select: { starred: true },
+  });
+  return visit?.starred ?? false;
 }
