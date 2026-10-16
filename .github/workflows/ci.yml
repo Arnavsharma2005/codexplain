@@ -29,7 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # pgvector for the repo intelligence embeddings (Neon has it built in).
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: codexplain_test

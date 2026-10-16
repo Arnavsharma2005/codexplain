@@ -62,9 +62,30 @@ How an analysis request flows through `/api/analyze`:
 - Google Gen AI SDK (Gemini) and Shiki
 - Tests with Vitest and Playwright
 
+## Repo intelligence (beta)
+
+Pasting a repo into a chatbot only works until the repo is bigger than its context window, and the answers can't be checked. Repo intelligence indexes the whole repository once and answers from that index. It lives at `/r/<owner>/<repo>/intel` and stays switched off until `INTEL_ENABLED=true`.
+
+- **Code graph.** The server downloads the repository as a single tarball, parses every file with tree-sitter (TypeScript, JavaScript, Python, Go, Rust, Java, Ruby, PHP and C#, plus C/C++ includes), and resolves imports into a file-to-file graph. It understands tsconfig path aliases, Python relative imports, Go modules and Rust `mod`/`crate::` paths.
+- **Blast radius.** Pick any file to see everything that imports it, directly or transitively, and how far away each file is. The interactive map is laid out with a force simulation and grouped by folder. Import cycles and the files the most code depends on are listed too.
+- **Hybrid search.** Postgres full-text search (with identifiers split, so `getGitHubToken` matches "github token") and pgvector cosine search over Gemini embeddings run in parallel. Their results are merged with reciprocal rank fusion. If the embedding quota runs out, search falls back to keywords alone.
+- **Cited answers.** A Gemini function-calling agent gets the top search results up front, so most questions need no tool calls. It can still search, read files, look up symbols and trace impact before it answers. Every `[path:Lstart-Lend]` citation is checked against the index. Real ones link to the exact lines and invented ones stay plain text.
+- **MCP server.** `/api/mcp` is a stateless Streamable HTTP MCP server with the same five read-only tools, so Claude Code or Cursor can use the index: `claude mcp add --transport http codexplain https://<host>/api/mcp`.
+- **Cheap to run.** Each snapshot is keyed by commit SHA. Embeddings are cached by content hash, so re-indexing a new commit only embeds code that changed. Old snapshots are pruned, and so are the vectors nothing uses any more. Codexplain's own repository (118 files) indexes in about 1.5 seconds before embeddings.
+
+```
+POST /api/intel/index ─► tarball ─► tree-sitter ─► import graph ─► chunks + tsvector ─► Gemini embeddings (cached by hash)
+GET  /api/intel/:id/graph          files, edges, centrality, cycles (immutable, CDN-cacheable)
+GET  /api/intel/:id/search?q=      full-text + pgvector, fused with RRF
+POST /api/intel/:id/ask            tool-using agent, NDJSON stream of steps and answer, verified citations
+POST /api/mcp                      MCP tools: repo_overview, search_code, read_file, find_symbol, impact_of_change
+```
+
+Postgres needs the `vector` extension. Neon includes it. Locally, install pgvector (for example `apt install postgresql-16-pgvector` or the `pgvector/pgvector:pg16` Docker image).
+
 ## Running locally
 
-Requires Node 20.9+ and Postgres.
+Requires Node 20.9+ and Postgres with pgvector.
 
 ```bash
 git clone https://github.com/Arnavsharma2005/codexplain.git
@@ -86,7 +107,7 @@ npm run dev               # http://localhost:3000
 
 ```bash
 npm run lint && npm run typecheck
-npm test            # unit tests (URL parsing, validation, line refs, prompts, tree utils)
+npm test            # unit tests (URL parsing, validation, line refs, prompts, tree utils, and the intel tar reader, parsers, import resolver, graph, chunker, search text and citations)
 npm run test:e2e    # Playwright, desktop + mobile
 ```
 
@@ -103,6 +124,7 @@ The end-to-end suite runs the production build against a local mock of the GitHu
 - saved repositories
 - quota enforcement
 - the mobile layout
+- repo intelligence: indexing, blast radius, the agent's cited answers, and the MCP server
 
 CI runs everything on each push and pull request (`.github/workflows/ci.yml`).
 

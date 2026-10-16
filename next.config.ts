@@ -32,7 +32,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  serverExternalPackages: ["@prisma/client"],
+  // tree-sitter loads its grammars from node_modules at runtime, so keep it unbundled
+  // and ship the .wasm files with the one route that parses code.
+  serverExternalPackages: ["@prisma/client", "@vscode/tree-sitter-wasm"],
+  outputFileTracingIncludes: {
+    "/api/intel/index": ["./node_modules/@vscode/tree-sitter-wasm/wasm/*.wasm"],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

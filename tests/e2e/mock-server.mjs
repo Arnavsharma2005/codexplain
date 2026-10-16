@@ -1,6 +1,7 @@
 // Local stand-ins for the GitHub REST API and the Anthropic Messages API, so the
 // end-to-end suite is deterministic, offline and free.
 import http from "node:http";
+import { gzipSync } from "node:zlib";
 
 const PORT = Number(process.env.MOCK_PORT ?? 4010);
 // Simulated GitHub API round-trip time, used by scripts/bench.mjs. Off for the e2e suite.
@@ -50,6 +51,72 @@ const REPO = {
   html_url: "https://github.com/acme/widgets",
   pushed_at: "2026-10-01T00:00:00Z",
 };
+
+// A ustar archive shaped like GitHub's: everything under "<owner>-<repo>-<sha7>/".
+function tarball(files, root) {
+  const blocks = [];
+  const header = (name, size) => {
+    const h = Buffer.alloc(512);
+    h.write(name, 0, 100, "utf8");
+    h.write("0000644\0", 100);
+    h.write("0000000\0", 108);
+    h.write("0000000\0", 116);
+    h.write(size.toString(8).padStart(11, "0") + "\0", 124);
+    h.write("00000000000\0", 136);
+    h.write("        ", 148);
+    h.write("0", 156);
+    h.write("ustar\0", 257);
+    h.write("00", 263);
+    let sum = 0;
+    for (const b of h) sum += b;
+    h.write(sum.toString(8).padStart(6, "0") + "\0 ", 148);
+    return h;
+  };
+  for (const [path, content] of Object.entries(files)) {
+    const body = Buffer.from(content, "latin1");
+    blocks.push(header(`${root}/${path}`, body.length), body, Buffer.alloc((512 - (body.length % 512)) % 512));
+  }
+  blocks.push(Buffer.alloc(1024));
+  return gzipSync(Buffer.concat(blocks));
+}
+
+// Deterministic bag-of-words vectors, so semantic search ranks related text together.
+function embed(text) {
+  const v = new Array(768).fill(0);
+  for (const w of text.toLowerCase().match(/[a-z]{3,}/g) ?? []) {
+    let h = 0;
+    for (const c of w) h = (h * 31 + c.charCodeAt(0)) % 768;
+    v[h] += 1;
+  }
+  const n = Math.hypot(...v) || 1;
+  return v.map((x) => x / n);
+}
+
+export const ANSWER_TEXT =
+  "`createWidget` builds a widget from a name [src/index.ts:L6-L9]. It slugifies the name with `slugify` [src/utils/slugify.ts:L1] and rejects empty names. See also [src/missing.ts:L1].";
+
+// The repository Q&A agent: first a tool call, then (once the tool answered) a cited answer.
+function geminiAgent(res, model, body) {
+  res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+  const send = (data) => res.write(`data: ${JSON.stringify({ modelVersion: model, ...data })}\r\n\r\n`);
+  const answered = body.contents.some((c) => c.parts?.some((p) => p.functionResponse));
+  if (!answered) {
+    send({
+      candidates: [
+        {
+          content: { role: "model", parts: [{ functionCall: { name: "find_symbol", args: { name: "createWidget" } }, thoughtSignature: "c2ln" }] },
+          finishReason: "STOP",
+          index: 0,
+        },
+      ],
+      usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 10 },
+    });
+    return res.end();
+  }
+  for (const chunk of ANSWER_TEXT.match(/[\s\S]{1,40}/g)) send({ candidates: [{ content: { role: "model", parts: [{ text: chunk }] }, index: 0 }] });
+  send({ candidates: [{ content: { role: "model", parts: [{ text: "" }] }, finishReason: "STOP", index: 0 }], usageMetadata: { promptTokenCount: 200, candidatesTokenCount: 50 } });
+  res.end();
+}
 
 function json(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -109,8 +176,35 @@ function handle(req, res) {
   if (req.method === "POST" && generate) {
     let raw = "";
     req.on("data", (c) => (raw += c));
-    req.on("end", () => gemini(req, res, generate[1], JSON.parse(raw)));
+    req.on("end", () => {
+      const body = JSON.parse(raw);
+      return body.tools ? geminiAgent(res, generate[1], body) : gemini(req, res, generate[1], body);
+    });
     return;
+  }
+
+  const embedCall = p.match(/^\/v1beta\/models\/([^/:]+):(batchEmbedContents|embedContent)$/);
+  if (req.method === "POST" && embedCall) {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      const body = JSON.parse(raw);
+      const requests = body.requests ?? [body];
+      const text = (r) => (r.content?.parts ?? []).map((part) => part.text ?? "").join(" ");
+      if (embedCall[2] === "embedContent") return json(res, 200, { embedding: { values: embed(text(requests[0])) } });
+      return json(res, 200, { embeddings: requests.map((r) => ({ values: embed(text(r)) })) });
+    });
+    return;
+  }
+
+  const HEAD = sha("widgets-head");
+  if (/^\/repos\/acme\/widgets\/commits\/.+$/.test(p)) {
+    res.writeHead(200, { "Content-Type": "application/vnd.github.sha" });
+    return res.end(HEAD);
+  }
+  if (p === `/repos/acme/widgets/tarball/${HEAD}`) {
+    res.writeHead(200, { "Content-Type": "application/x-gzip" });
+    return res.end(tarball(FILES, `acme-widgets-${HEAD.slice(0, 7)}`));
   }
 
   if (p === "/repos/acme/private") return json(res, 200, { ...REPO, name: "private", full_name: "acme/private", private: true });

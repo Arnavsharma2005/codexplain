@@ -12,6 +12,7 @@ const env = {
   GEMINI_BASE_URL: "http://127.0.0.1:4010",
   GITHUB_API_URL: "http://127.0.0.1:4010",
   DAILY_ANALYSIS_LIMIT: "5",
+  INTEL_ENABLED: "true",
 };
 Object.assign(process.env, env);
 
