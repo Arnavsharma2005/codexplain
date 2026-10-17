@@ -479,6 +479,9 @@
 .wt-chip.is-info { border: 1.5px solid var(--ink-muted); color: var(--ink-muted); padding: 3px 5px 2px; }
 .wt-try { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,2fr) auto; gap: 16px; align-items: baseline; padding: 14px 8px 14px 0; border-bottom: 1px solid var(--hairline); color: var(--ink); }
 @media (max-width: 767px) { .wt-try { grid-template-columns: minmax(0,1fr) auto; } .wt-try > :first-child { grid-column: 1 / -1; } }
+/* Rows that lead with a short "#123" instead of a repository name. */
+.wt-try.is-num { grid-template-columns: 96px minmax(0,1fr) auto; }
+@media (max-width: 767px) { .wt-try.is-num { grid-template-columns: 64px minmax(0,1fr); } .wt-try.is-num > :first-child { grid-column: auto; } .wt-try.is-num > :last-child { grid-column: 2; } }
 }
 
 /* Dark controls: a quiet edge (>= 3:1 on every dark surface) instead of a cream 2px line.
