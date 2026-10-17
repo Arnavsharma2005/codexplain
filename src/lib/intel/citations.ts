@@ -1,7 +1,13 @@
 export type Citation = { path: string; startLine: number; endLine: number };
 
-// [src/lib/auth.ts:L12-L30], [src/lib/auth.ts:L12] or [src/lib/auth.ts]
-const CITE = /\[([A-Za-z0-9_.\-/@+ ]+?\.[A-Za-z0-9]+|[A-Za-z0-9_.\-/@+]+\/[A-Za-z0-9_.\-@+]+)(?::L(\d{1,6})(?:-L?(\d{1,6}))?)?\](?!\()/g;
+// [src/lib/auth.ts:L12-L30], [src/lib/auth.ts:L12] or [src/lib/auth.ts]. Path segments may be
+// Next.js-style [param] or (group) folders: [src/app/a/[slug]/page.tsx:L3].
+const SEG = String.raw`(?:[A-Za-z0-9_.\-/@+ ]|\[[A-Za-z0-9_.\-]+\]|\([A-Za-z0-9_.\-]+\))`;
+const TIGHT = String.raw`(?:[A-Za-z0-9_.\-/@+]|\[[A-Za-z0-9_.\-]+\]|\([A-Za-z0-9_.\-]+\))`;
+const CITE = new RegExp(
+  String.raw`\[(${SEG}+?\.[A-Za-z0-9]+|${TIGHT}+\/${TIGHT}+)(?::L(\d{1,6})(?:-L?(\d{1,6}))?)?\](?!\()`,
+  "g",
+);
 
 /** Finds citation markers in an answer. Validation against the index happens separately. */
 export function extractCitations(text: string): (Citation & { raw: string })[] {
@@ -19,13 +25,18 @@ export function extractCitations(text: string): (Citation & { raw: string })[] {
  * only citations of files that exist in the index. Unknown paths are left
  * as plain text so a hallucinated path never becomes a link.
  */
-export function linkCitations(text: string, known: (path: string) => boolean, href: (c: Citation) => string): string {
+export function linkCitations(
+  text: string,
+  known: (path: string) => boolean,
+  href: (c: Citation) => string,
+  name: (path: string) => string = (p) => p,
+): string {
   return text.replace(CITE, (raw, path: string, a?: string, b?: string) => {
     if (!known(path)) return raw;
     const start = a ? Number(a) : 1;
     const end = b ? Number(b) : start;
     const c = { path, startLine: Math.min(start, end), endLine: Math.max(start, end) };
-    const label = a ? `${path}:L${c.startLine}${c.endLine !== c.startLine ? `-L${c.endLine}` : ""}` : path;
+    const label = a ? `${name(path)}:L${c.startLine}${c.endLine !== c.startLine ? `-L${c.endLine}` : ""}` : name(path);
     return `[${label}](${href(c)})`;
   });
 }

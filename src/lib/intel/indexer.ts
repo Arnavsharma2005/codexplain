@@ -1,23 +1,17 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
-import { detectLanguage } from "@/lib/languages";
 import { ApiError } from "@/lib/http";
 import { chunkFile } from "./chunk";
 import { intelConfig } from "./config";
 import { embedDocuments, embeddingModel } from "./embed";
-import { looksGenerated, wantFile } from "./files";
-import { readTarball } from "./github";
-import { adjacency, pageRank, type GraphEdge } from "./graph";
-import { parseSource, type ParsedFile } from "./parse";
-import { buildContext, resolveImport } from "./resolve";
+import { adjacency, pageRank } from "./graph";
+import { scanRepository } from "./scan";
 import { existingEmbeddings, insertChunks, insertEmbeddings, type ChunkRow } from "./store";
 import { searchDocument } from "./text";
 
 export type IndexStage = "queued" | "download" | "parse" | "store" | "embed";
 export type IndexProgress = { stage: IndexStage; message: string; done?: number; total?: number };
-
-type SourceFile = { path: string; lang: string; text: string; bytes: number; parsed?: ParsedFile };
 
 /** An index stuck in INDEXING longer than this is treated as crashed and rebuilt. */
 const STALE_MS = 6 * 60 * 1000;
@@ -25,7 +19,6 @@ const STALE_MS = 6 * 60 * 1000;
 const KEEP_SNAPSHOTS = 3;
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
-const yieldToLoop = () => new Promise<void>((r) => setImmediate(r));
 
 /** Text sent to the embedding model; its hash is the embedding cache key. */
 export function embeddingText(path: string, symbols: string[], text: string) {
@@ -67,73 +60,11 @@ export async function buildIndex(
   const { indexId } = params;
 
   try {
-    // 1. Download: one tarball, filtered as it streams.
-    onProgress({ stage: "download", message: "Downloading repository" });
-    const files: SourceFile[] = [];
-    let totalBytes = 0;
-    let skipped = 0;
-    const decoder = new TextDecoder("utf-8", { fatal: false });
-    await readTarball(
-      params.owner,
-      params.repo,
-      params.sha,
-      params.token,
-      (path, size) => {
-        const wanted = path.endsWith("go.mod") || wantFile(path, size);
-        if (!wanted) return false;
-        if (files.length >= cfg.INTEL_MAX_FILES || totalBytes + size > cfg.INTEL_MAX_TOTAL_BYTES) {
-          skipped++;
-          return false;
-        }
-        totalBytes += size;
-        return true;
-      },
-      ({ path, data }) => {
-        if (data.subarray(0, 8000).includes(0)) return;
-        const text = decoder.decode(data);
-        if (looksGenerated(text)) {
-          skipped++;
-          return;
-        }
-        files.push({ path, lang: detectLanguage(path), text, bytes: data.length });
-      },
+    // 1–3. Download, parse with tree-sitter and resolve imports into edges.
+    const { files, edges, skipped, totalBytes } = await scanRepository(
+      { owner: params.owner, repo: params.repo, sha: params.sha, token: params.token },
+      onProgress,
     );
-    if (!files.length) throw new ApiError(422, "NOTHING_TO_INDEX", "No source files were found in this repository.");
-    files.sort((a, b) => a.path.localeCompare(b.path));
-
-    // 2. Parse with tree-sitter.
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      f.parsed = await parseSource(f.lang, f.text).catch(() => ({ imports: [], symbols: [] }));
-      if (i % 50 === 0) {
-        onProgress({ stage: "parse", message: "Parsing files", done: i, total: files.length });
-        await yieldToLoop();
-      }
-    }
-    onProgress({ stage: "parse", message: "Parsing files", done: files.length, total: files.length });
-
-    // 3. Resolve imports into file → file edges.
-    const ctx = buildContext(
-      files.map((f) => f.path),
-      {
-        tsconfigs: new Map(files.filter((f) => /(^|\/)[tj]sconfig(\.[\w-]+)?\.json$/.test(f.path)).map((f) => [f.path, f.text])),
-        goMod: files.find((f) => f.path === "go.mod")?.text ?? null,
-      },
-    );
-    const position = new Map(files.map((f, i) => [f.path, i]));
-    const edgeKeys = new Set<string>();
-    const edges: GraphEdge[] = [];
-    files.forEach((f, i) => {
-      for (const spec of f.parsed!.imports)
-        for (const target of resolveImport(ctx, f.path, f.lang, spec)) {
-          const j = position.get(target)!;
-          const key = `${i}:${j}`;
-          if (!edgeKeys.has(key)) {
-            edgeKeys.add(key);
-            edges.push([i, j]);
-          }
-        }
-    });
 
     // 4. Store files, symbols, edges and search chunks.
     onProgress({ stage: "store", message: "Saving the code graph" });
@@ -149,7 +80,7 @@ export async function buildIndex(
       })),
     });
     const symbols = files.flatMap((f, i) =>
-      f.parsed!.symbols.map((s) => ({ indexId, fileId: fileIds[i], ...s })),
+      f.parsed.symbols.map((s) => ({ indexId, fileId: fileIds[i], ...s })),
     );
     for (let i = 0; i < symbols.length; i += 5000) await db.intelSymbol.createMany({ data: symbols.slice(i, i + 5000) });
     for (let i = 0; i < edges.length; i += 5000)
@@ -160,8 +91,8 @@ export async function buildIndex(
     const rank = pageRank(adjacency(files.length, edges));
     const chunks: (ChunkRow & { priority: number; embedText: string })[] = [];
     files.forEach((f, i) => {
-      const isCode = f.parsed!.symbols.length > 0 || f.parsed!.imports.length > 0;
-      for (const c of chunkFile(f.text, f.parsed!.symbols)) {
+      const isCode = f.parsed.symbols.length > 0 || f.parsed.imports.length > 0;
+      for (const c of chunkFile(f.text, f.parsed.symbols)) {
         const embedText = embeddingText(f.path, c.symbols, c.text);
         chunks.push({
           id: randomUUID(),

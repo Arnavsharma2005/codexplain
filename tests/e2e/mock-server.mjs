@@ -1,4 +1,4 @@
-// Local stand-ins for the GitHub REST API and the Anthropic Messages API, so the
+// Local stand-ins for the GitHub REST API and the Gemini API, so the
 // end-to-end suite is deterministic, offline and free.
 import http from "node:http";
 import { gzipSync } from "node:zlib";
@@ -118,6 +118,78 @@ function geminiAgent(res, model, body) {
   res.end();
 }
 
+// Pull request #7: tightens slugify, validates names, rewords the README. Its head is the
+// commit the tarball above serves, so the import graph matches the diff.
+const PULL_FILES = [
+  {
+    filename: "src/utils/slugify.ts",
+    status: "modified",
+    additions: 1,
+    deletions: 1,
+    patch: '@@ -1 +1 @@\n-export const slugify = (s: string) => s.toLowerCase().replace(/\\s+/g, "-");\n+export const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");',
+  },
+  {
+    filename: "src/index.ts",
+    status: "modified",
+    additions: 1,
+    deletions: 0,
+    patch: [
+      "@@ -5,5 +5,6 @@ export type Widget = { id: string; name: string };",
+      " /** Creates a widget with a URL-safe id. */",
+      " export function createWidget(name: string): Widget {",
+      '+  if (!name.trim()) throw new Error("name is required");',
+      "   return { id: slugify(name), name };",
+      " }",
+      " ",
+    ].join("\n"),
+  },
+  { filename: "README.md", status: "modified", additions: 1, deletions: 1, patch: "@@ -1,3 +1,3 @@\n # Widgets\n \n-A demo library.\n+A tiny demo library." },
+];
+
+const pull = (number, extra = {}) => ({
+  number,
+  title: "Add name checks to widgets",
+  body: "Rejects blank names and makes slugs URL-safe.",
+  user: { login: "ada" },
+  state: "open",
+  merged: false,
+  draft: false,
+  html_url: `https://github.com/acme/widgets/pull/${number}`,
+  head: { sha: sha("widgets-head") },
+  base: { sha: sha("widgets-base"), ref: "main", repo: { private: false } },
+  additions: 3,
+  deletions: 2,
+  changed_files: PULL_FILES.length,
+  commits: 2,
+  ...extra,
+});
+
+export const WALKTHROUGH = {
+  story: "Widget ids become URL-safe and blank names are rejected before a widget is made.",
+  risk: "low",
+  layers: [
+    {
+      title: "Safer slugs",
+      files: ["src/utils/slugify.ts"],
+      summary: "`slugify` now turns every run of characters that are not letters or digits into one dash [src/utils/slugify.ts:L1].",
+      impact: "Every widget id goes through this function.",
+      notes: [{ tone: "fine", text: "Input is lowercased first, so capitals cannot slip through.", path: "src/utils/slugify.ts", start: 1, end: 1 }],
+    },
+    {
+      title: "Validate widget names",
+      files: ["src/index.ts"],
+      summary: "`createWidget` throws on blank names before it slugifies them [src/index.ts:L7].",
+      flow: {
+        title: "Creating a widget",
+        before: { note: "", stages: [["createWidget"], ["slugify"]] },
+        after: { note: "blank names stop here", stages: [["createWidget"], ["name check"], ["slugify"]] },
+      },
+      notes: [{ tone: "warn", text: "No test covers the new error.", path: "src/index.ts", start: 7, end: 7 }],
+    },
+    { title: "Readme wording", files: ["README.md"], summary: "Calls the library tiny.", notes: [] },
+  ],
+};
+
 function json(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
@@ -183,6 +255,24 @@ function handle(req, res) {
     return;
   }
 
+  // PR walkthroughs: one JSON-mode generateContent call.
+  const oneShot = p.match(/^\/v1beta\/models\/([^/:]+):generateContent$/);
+  if (req.method === "POST" && oneShot) {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      const body = JSON.parse(raw);
+      const config = body.generationConfig ?? {};
+      if (config.responseMimeType !== "application/json" || !config.responseJsonSchema) return json(res, 400, { error: { code: 400, message: "JSON mode expected" } });
+      json(res, 200, {
+        modelVersion: oneShot[1],
+        candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify(WALKTHROUGH) }] }, finishReason: "STOP", index: 0 }],
+        usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 300 },
+      });
+    });
+    return;
+  }
+
   const embedCall = p.match(/^\/v1beta\/models\/([^/:]+):(batchEmbedContents|embedContent)$/);
   if (req.method === "POST" && embedCall) {
     let raw = "";
@@ -207,6 +297,10 @@ function handle(req, res) {
     return res.end(tarball(FILES, `acme-widgets-${HEAD.slice(0, 7)}`));
   }
 
+  if (p === "/repos/acme/widgets/pulls/7") return json(res, 200, pull(7));
+  if (p === "/repos/acme/widgets/pulls/7/files") return json(res, 200, url.searchParams.get("page") === "1" ? PULL_FILES : []);
+  // Too big to walk through.
+  if (p === "/repos/acme/widgets/pulls/8") return json(res, 200, pull(8, { title: "Rewrite everything", changed_files: 4000 }));
   if (p === "/repos/acme/private") return json(res, 200, { ...REPO, name: "private", full_name: "acme/private", private: true });
   if (p === "/repos/acme/widgets") return json(res, 200, REPO);
   if (p === "/repos/acme/widgets/branches") return json(res, 200, [{ name: "main" }, { name: "feature/login" }]);

@@ -70,7 +70,8 @@ Pasting a repo into a chatbot only works until the repo is bigger than its conte
 - **Blast radius.** Pick any file to see everything that imports it, directly or transitively, and how far away each file is. The interactive map is laid out with a force simulation and grouped by folder. Import cycles and the files the most code depends on are listed too.
 - **Hybrid search.** Postgres full-text search (with identifiers split, so `getGitHubToken` matches "github token") and pgvector cosine search over Gemini embeddings run in parallel. Their results are merged with reciprocal rank fusion. If the embedding quota runs out, search falls back to keywords alone.
 - **Cited answers.** A Gemini function-calling agent gets the top search results up front, so most questions need no tool calls. It can still search, read files, look up symbols and trace impact before it answers. Every `[path:Lstart-Lend]` citation is checked against the index. Real ones link to the exact lines and invented ones stay plain text.
-- **MCP server.** `/api/mcp` is a stateless Streamable HTTP MCP server with the same five read-only tools, so Claude Code or Cursor can use the index: `claude mcp add --transport http codexplain https://<host>/api/mcp`.
+- **PR walkthrough.** Paste a pull request link at `/pr` (or in the header search) and get it back as a story. The changed files are projected onto the import graph at the head commit and grouped into layers in reading order, so foundations come before the code that uses them. Gemini writes a short summary per layer with checked line citations, review notes and, when a flow changes, a before/after diagram drawn as plain SVG. Each layer shows its blast radius: the files outside the PR that depend on it. Walkthroughs are saved per head commit, so the next visitor gets them instantly, and if the model is busy the layers are still ordered by the graph alone. The diff view has unified and split modes, and J, K and V keys to move between layers and mark them viewed.
+- **MCP server.** `/api/mcp` is a stateless Streamable HTTP MCP server with the same five read-only tools plus `walk_pull_request`, so Claude Code or Cursor can use the index: `claude mcp add --transport http codexplain https://<host>/api/mcp`.
 - **Cheap to run.** Each snapshot is keyed by commit SHA. Embeddings are cached by content hash, so re-indexing a new commit only embeds code that changed. Old snapshots are pruned, and so are the vectors nothing uses any more. Codexplain's own repository (118 files) indexes in about 1.5 seconds before embeddings.
 
 ```
@@ -78,7 +79,8 @@ POST /api/intel/index ─► tarball ─► tree-sitter ─► import graph ─�
 GET  /api/intel/:id/graph          files, edges, centrality, cycles (immutable, CDN-cacheable)
 GET  /api/intel/:id/search?q=      full-text + pgvector, fused with RRF
 POST /api/intel/:id/ask            tool-using agent, NDJSON stream of steps and answer, verified citations
-POST /api/mcp                      MCP tools: repo_overview, search_code, read_file, find_symbol, impact_of_change
+POST /api/intel/pulls              PR walkthrough: diff + import graph at head ─► layers ─► Gemini (JSON schema) ─► repaired, saved per head SHA
+POST /api/mcp                      MCP tools: repo_overview, search_code, read_file, find_symbol, impact_of_change, walk_pull_request
 ```
 
 Postgres needs the `vector` extension. Neon includes it. Locally, install pgvector (for example `apt install postgresql-16-pgvector` or the `pgvector/pgvector:pg16` Docker image).

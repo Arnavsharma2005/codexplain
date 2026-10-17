@@ -17,6 +17,7 @@ export function McpPanel({ repo }: { repo: RepoInfo }) {
     ["read_file", "Numbered lines of any indexed file"],
     ["find_symbol", "Where a function, class or type is defined"],
     ["impact_of_change", "Every file that transitively imports a file"],
+    ["walk_pull_request", "A saved PR walkthrough: layers in reading order, notes and reach"],
   ];
   return (
     <div className="max-w-[760px]">

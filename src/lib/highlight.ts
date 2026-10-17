@@ -103,3 +103,26 @@ async function render(code: string, lang: string, anchors: boolean): Promise<str
     return plainHtml(normalized, anchors);
   }
 }
+
+/**
+ * Highlights code and returns one HTML string per line, for views that lay
+ * out lines themselves (diffs). Token colours come from the theme, and all
+ * source text is escaped, so the strings are safe to inject.
+ */
+export async function highlightLines(code: string, lang: string): Promise<string[]> {
+  const lines = code.replace(/\r\n?/g, "\n").split("\n");
+  const plain = () => lines.map(escapeHtml);
+  if (lang === "text" || !(lang in bundledLanguages) || code.length > MAX_HIGHLIGHT_CHARS || lines.length > MAX_HIGHLIGHT_LINES) return plain();
+  try {
+    const highlighter = await getHighlighter();
+    if (!highlighter.getLoadedLanguages().includes(lang)) await highlighter.loadLanguage(lang as BundledLanguage);
+    const { tokens } = highlighter.codeToTokens(lines.join("\n"), { lang: lang as BundledLanguage, theme: "codexplain-plate" });
+    if (tokens.length !== lines.length) return plain();
+    return tokens.map((line) =>
+      line.map((t) => (t.color ? `<span style="color:${t.color}">${escapeHtml(t.content)}</span>` : escapeHtml(t.content))).join(""),
+    );
+  } catch (err) {
+    console.warn("[highlight] falling back to plain text", lang, err);
+    return plain();
+  }
+}

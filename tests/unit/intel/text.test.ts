@@ -100,4 +100,14 @@ describe("citations", () => {
     expect(out).toContain("[src/made-up.ts:L1].");
     expect(out).toContain("[a link](x)");
   });
+
+  it("reads Next.js [param] and (group) folders in paths", () => {
+    const found = extractCitations("See [src/app/a/[slug]/page.tsx:L3-L9] and [src/app/(marketing)/pr/page.tsx].");
+    expect(found.map((c) => `${c.path}:${c.startLine}-${c.endLine}`)).toEqual(["src/app/a/[slug]/page.tsx:3-9", "src/app/(marketing)/pr/page.tsx:1-1"]);
+  });
+
+  it("can label links with a short name", () => {
+    const out = linkCitations("[src/a.ts:L3-L9]", () => true, () => "#x", (p) => p.split("/").pop()!);
+    expect(out).toBe("[a.ts:L3-L9](#x)");
+  });
 });

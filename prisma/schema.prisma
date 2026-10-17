@@ -13,14 +13,14 @@ datasource db {
 // ---------- NextAuth ----------
 
 model User {
-  id            String         @id @default(cuid())
+  id            String          @id @default(cuid())
   name          String?
-  email         String?        @unique
+  email         String?         @unique
   emailVerified DateTime?
   image         String?
   githubLogin   String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   accounts      Account[]
   sessions      Session[]
   repoVisits    RepoVisit[]
@@ -28,6 +28,7 @@ model User {
   analysisViews AnalysisView[]
   usage         UsageDay[]
   intelIndexes  IntelIndex[]
+  walkthroughs  PrWalkthrough[]
 }
 
 // OAuth tokens are intentionally NOT persisted here (see src/lib/auth.ts).
@@ -69,18 +70,19 @@ model VerificationToken {
 // ---------- Codexplain ----------
 
 model Repository {
-  id            String      @id @default(cuid())
+  id            String          @id @default(cuid())
   owner         String
   name          String
   description   String?
   defaultBranch String
-  stars         Int         @default(0)
+  stars         Int             @default(0)
   language      String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   visits        RepoVisit[]
   analyses      Analysis[]
   intelIndexes  IntelIndex[]
+  walkthroughs  PrWalkthrough[]
 
   @@unique([owner, name])
 }
@@ -166,25 +168,25 @@ enum IntelStatus {
 }
 
 model IntelIndex {
-  id            String       @id @default(cuid())
+  id            String        @id @default(cuid())
   repositoryId  String
   createdById   String?
   ref           String
   commitSha     String
-  status        IntelStatus  @default(INDEXING)
+  status        IntelStatus   @default(INDEXING)
   error         String?
-  fileCount     Int          @default(0)
-  symbolCount   Int          @default(0)
-  edgeCount     Int          @default(0)
-  chunkCount    Int          @default(0)
-  embeddedCount Int          @default(0)
-  skippedCount  Int          @default(0)
-  bytes         Int          @default(0)
-  durationMs    Int          @default(0)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  repository    Repository   @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  createdBy     User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  fileCount     Int           @default(0)
+  symbolCount   Int           @default(0)
+  edgeCount     Int           @default(0)
+  chunkCount    Int           @default(0)
+  embeddedCount Int           @default(0)
+  skippedCount  Int           @default(0)
+  bytes         Int           @default(0)
+  durationMs    Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  repository    Repository    @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  createdBy     User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
   files         IntelFile[]
   symbols       IntelSymbol[]
   edges         IntelEdge[]
@@ -264,4 +266,36 @@ model IntelEmbedding {
   createdAt DateTime                   @default(now())
 
   @@id([hash, model])
+}
+
+// A pull request read as ordered layers with AI summaries (repo intelligence,
+// behind INTEL_ENABLED). One row per PR head commit; `data` holds the files,
+// trimmed diffs and layers (see src/lib/intel/pulls/types.ts).
+model PrWalkthrough {
+  id           String      @id @default(cuid())
+  repositoryId String
+  createdById  String?
+  number       Int
+  headSha      String
+  baseSha      String
+  title        String
+  author       String
+  state        String
+  additions    Int         @default(0)
+  deletions    Int         @default(0)
+  changedFiles Int         @default(0)
+  status       IntelStatus @default(INDEXING)
+  error        String?
+  model        String?
+  data         Json?
+  durationMs   Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  createdBy    User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([repositoryId, number, headSha])
+  @@index([repositoryId, number, createdAt])
+  @@index([status, createdAt])
+  @@index([createdById, createdAt])
 }

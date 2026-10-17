@@ -40,7 +40,12 @@ export default async function IntelPage({ params, searchParams }: Props) {
     <>
       <SiteHeader />
       <main className="flex-1">
-        <IntelApp repo={info} gitRef={refParam ?? info.defaultBranch} signedIn={!!session?.user} />
+        <IntelApp
+          repo={info}
+          gitRef={refParam ?? info.defaultBranch}
+          signedIn={!!session?.user}
+          initialQuestion={typeof sp.q === "string" ? sp.q.slice(0, 2000) : null}
+        />
       </main>
       <SiteFooter />
     </>

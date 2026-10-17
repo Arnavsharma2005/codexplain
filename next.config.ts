@@ -33,10 +33,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   // tree-sitter loads its grammars from node_modules at runtime, so keep it unbundled
-  // and ship the .wasm files with the one route that parses code.
+  // and ship the .wasm files with the routes that parse code.
   serverExternalPackages: ["@prisma/client", "@vscode/tree-sitter-wasm"],
   outputFileTracingIncludes: {
     "/api/intel/index": ["./node_modules/@vscode/tree-sitter-wasm/wasm/*.wasm"],
+    "/api/intel/pulls": ["./node_modules/@vscode/tree-sitter-wasm/wasm/*.wasm"],
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

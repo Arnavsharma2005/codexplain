@@ -84,3 +84,112 @@ export async function readTarball(
     throw err;
   }
 }
+
+export type PullInfo = {
+  number: number;
+  title: string;
+  body: string;
+  author: string;
+  state: "open" | "closed" | "merged";
+  draft: boolean;
+  htmlUrl: string;
+  headSha: string;
+  baseSha: string;
+  baseRef: string;
+  isPrivate: boolean;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  commits: number;
+};
+
+export type PullFile = {
+  path: string;
+  previousPath?: string;
+  status: "added" | "removed" | "modified" | "renamed" | "copied" | "changed" | "unchanged";
+  additions: number;
+  deletions: number;
+  /** GitHub leaves this out for binary files and very large diffs. */
+  patch: string | null;
+};
+
+type RawPull = {
+  number: number;
+  title: string;
+  body: string | null;
+  user: { login: string } | null;
+  state: "open" | "closed";
+  merged?: boolean;
+  merged_at?: string | null;
+  draft?: boolean;
+  html_url: string;
+  head: { sha: string };
+  base: { sha: string; ref: string; repo: { private: boolean } };
+  additions?: number;
+  deletions?: number;
+  changed_files?: number;
+  commits?: number;
+};
+
+async function getJson<T>(path: string, token: string | null | undefined, cacheSeconds: number): Promise<T> {
+  const url = `${base()}${path}`;
+  const init = (t: string | null | undefined): RequestInit => ({
+    headers: headers(t, "application/vnd.github+json"),
+    signal: AbortSignal.timeout(15_000),
+    ...(cacheSeconds ? { next: { revalidate: cacheSeconds } } : { cache: "no-store" as const }),
+  });
+  let res: Response;
+  try {
+    res = await fetch(url, init(token));
+    if (res.status === 401 && token) res = await fetch(url, init(null));
+  } catch {
+    throw new GitHubError("UNAVAILABLE", "GitHub could not be reached. Please try again.");
+  }
+  if (res.status === 404) throw new GitHubError("NOT_FOUND", "That pull request was not found. It may be in a private repository.");
+  if (!res.ok) fail(res.status);
+  return (await res.json()) as T;
+}
+
+/** One pull request's metadata. `cacheSeconds` 0 always asks GitHub (used before generating). */
+export async function getPull(owner: string, repo: string, number: number, token: string | null | undefined, cacheSeconds = 60): Promise<PullInfo> {
+  const p = await getJson<RawPull>(`/repos/${enc(owner, repo)}/pulls/${number}`, token, cacheSeconds);
+  return {
+    number: p.number,
+    title: p.title,
+    body: p.body ?? "",
+    author: p.user?.login ?? "ghost",
+    state: p.merged || p.merged_at ? "merged" : p.state,
+    draft: !!p.draft,
+    htmlUrl: p.html_url,
+    headSha: p.head.sha,
+    baseSha: p.base.sha,
+    baseRef: p.base.ref,
+    isPrivate: p.base.repo.private,
+    additions: p.additions ?? 0,
+    deletions: p.deletions ?? 0,
+    changedFiles: p.changed_files ?? 0,
+    commits: p.commits ?? 0,
+  };
+}
+
+type RawPullFile = { filename: string; previous_filename?: string; status: PullFile["status"]; additions: number; deletions: number; patch?: string };
+
+/** The changed files with their unified-diff patches, 100 per page, up to `max`. */
+export async function listPullFiles(owner: string, repo: string, number: number, token: string | null | undefined, max: number): Promise<PullFile[]> {
+  const out: PullFile[] = [];
+  for (let page = 1; out.length < max; page++) {
+    const batch = await getJson<RawPullFile[]>(`/repos/${enc(owner, repo)}/pulls/${number}/files?per_page=100&page=${page}`, token, 0);
+    for (const f of batch) {
+      out.push({
+        path: f.filename,
+        ...(f.previous_filename && f.previous_filename !== f.filename ? { previousPath: f.previous_filename } : {}),
+        status: f.status,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch ?? null,
+      });
+    }
+    if (batch.length < 100) break;
+  }
+  return out.slice(0, max);
+}

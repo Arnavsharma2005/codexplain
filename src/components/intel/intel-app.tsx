@@ -37,7 +37,18 @@ function errorText(err: unknown) {
   return err instanceof ApiClientError ? err.message : "Something went wrong. Please try again.";
 }
 
-export function IntelApp({ repo, gitRef, signedIn }: { repo: RepoInfo; gitRef: string; signedIn: boolean }) {
+export function IntelApp({
+  repo,
+  gitRef,
+  signedIn,
+  initialQuestion,
+}: {
+  repo: RepoInfo;
+  gitRef: string;
+  signedIn: boolean;
+  /** Prefills the question box (links from a PR walkthrough pass ?q=). */
+  initialQuestion?: string | null;
+}) {
   const [status, setStatus] = useState<Status | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
@@ -48,7 +59,7 @@ export function IntelApp({ repo, gitRef, signedIn }: { repo: RepoInfo; gitRef: s
   const [tab, setTab] = useState<Tab>("ask");
   // The force layout is computed on first visit to the map, not on page load.
   const [mapOpened, setMapOpened] = useState(false);
-  const [draft, setDraft] = useState<{ text: string; at: number } | null>(null);
+  const [draft, setDraft] = useState<{ text: string; at: number } | null>(initialQuestion ? { text: initialQuestion, at: 0 } : null);
   const abort = useRef<AbortController | null>(null);
 
   const qs = new URLSearchParams({ owner: repo.owner, repo: repo.name, ref: gitRef }).toString();
@@ -117,6 +128,10 @@ export function IntelApp({ repo, gitRef, signedIn }: { repo: RepoInfo; gitRef: s
             A code graph, cited answers and change impact for{" "}
             <Link href={repoHref} className="chrome-link font-mono normal-case">
               {repo.fullName}
+            </Link>
+            . Reviewing a pull request?{" "}
+            <Link href="/pr" className="chrome-link">
+              Walk through it
             </Link>
           </>
         }

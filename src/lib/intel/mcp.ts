@@ -4,6 +4,9 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { ownerSchema, refSchema, repoNameSchema } from "@/lib/github/validation";
+import { pullNumberSchema } from "./http";
+import { findWalkthroughs } from "./pulls/queries";
+import type { WalkthroughData } from "./pulls/types";
 import { findReadyIndex } from "./repo-index";
 import { runTool, toolDefinitions } from "./tools";
 
@@ -21,8 +24,66 @@ const REPO_PROPS = {
   ref: { type: "string", description: "Branch, tag or commit SHA. Defaults to the newest indexed snapshot." },
 };
 
+const WALK_TOOL = {
+  name: "walk_pull_request",
+  description:
+    "Get the saved Codexplain walkthrough of a public pull request: its files grouped into layers in reading order (foundations first), a summary and review notes per layer, and how many files outside the PR depend on each layer. Walkthroughs are created on the Codexplain website; if none exists the result links to the page that creates it.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      repo: { type: "string", description: "GitHub repository as owner/name." },
+      number: { type: "integer", description: "Pull request number." },
+    },
+    required: ["repo", "number"],
+    additionalProperties: false,
+  },
+  annotations: { readOnlyHint: true, openWorldHint: false },
+};
+
+const walkArgs = z.object({ repo: repoArgs.shape.repo, number: pullNumberSchema });
+
+async function walkPullRequest(args: Record<string, unknown>, baseUrl: string) {
+  const sel = walkArgs.safeParse(args);
+  if (!sel.success) return { isError: true, content: [{ type: "text", text: sel.error.issues[0]?.message ?? "Invalid arguments" }] };
+  const [owner, name] = sel.data.repo;
+  const { number } = sel.data;
+  const url = `${baseUrl}/r/${owner}/${name}/pull/${number}`;
+  const { latest } = await findWalkthroughs(owner, name, number, null);
+  const data = latest?.data as WalkthroughData | null | undefined;
+  if (!latest || !data) {
+    return { isError: true, content: [{ type: "text", text: `${owner}/${name}#${number} has no walkthrough yet. Create it at ${url}` }] };
+  }
+  const payload = {
+    pull_request: `${owner}/${name}#${number}`,
+    title: latest.title,
+    state: latest.state,
+    head_commit: latest.headSha,
+    url,
+    review_risk: data.risk,
+    story: data.story,
+    files_outside_pr_affected: data.graphFiles ? data.blastTotal : null,
+    layers: data.layers.map((l, k) => ({
+      layer: k + 1,
+      title: l.title,
+      builds_on: l.after.map((a) => a + 1),
+      files: l.files.map((i) => {
+        const f = data.files[i];
+        return { path: f.path, status: f.status, additions: f.additions, deletions: f.deletions };
+      }),
+      summary: l.summary,
+      review_notes: l.notes.map((n) => ({ tone: n.tone, text: n.text, ...(n.ref ? { path: n.ref.path, lines: n.ref.start ? `L${n.ref.start}-L${n.ref.end}` : null } : {}) })),
+      blast_radius: { files: l.blast.total, direct_dependents: l.blast.direct },
+    })),
+  };
+  return { content: [{ type: "text", text: JSON.stringify(payload, null, 1) }] };
+}
+
 /** Adds the repo/ref selector to each shared tool's JSON schema. */
 function mcpTools() {
+  return [...indexTools(), WALK_TOOL];
+}
+
+function indexTools() {
   return toolDefinitions().map((t) => {
     const schema = t.inputSchema as { properties?: Record<string, unknown>; required?: string[] };
     return {
@@ -45,7 +106,7 @@ function buildServer(baseUrl: string) {
     {
       capabilities: { tools: {} },
       instructions:
-        "Read-only code intelligence for public GitHub repositories indexed on Codexplain: hybrid code search, file reads, symbol lookup, and change blast radius over the import graph. Start with repo_overview.",
+        "Read-only code intelligence for public GitHub repositories indexed on Codexplain: hybrid code search, file reads, symbol lookup, and change blast radius over the import graph. Start with repo_overview. walk_pull_request returns a saved pull request walkthrough.",
     },
   );
 
@@ -53,6 +114,7 @@ function buildServer(baseUrl: string) {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = (request.params.arguments ?? {}) as Record<string, unknown>;
+    if (request.params.name === WALK_TOOL.name) return walkPullRequest(args, baseUrl);
     const sel = repoArgs.safeParse(args);
     if (!sel.success) return { isError: true, content: [{ type: "text", text: sel.error.issues[0]?.message ?? "Invalid repo" }] };
     const [owner, name] = sel.data.repo;

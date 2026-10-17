@@ -13,6 +13,8 @@ export function requireIntel() {
 
 export const indexBodySchema = z.object({ owner: ownerSchema, repo: repoNameSchema, ref: refSchema });
 export const indexIdSchema = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
+export const pullNumberSchema = z.coerce.number().int().positive().max(1_000_000_000);
+export const pullBodySchema = z.object({ owner: ownerSchema, repo: repoNameSchema, number: pullNumberSchema });
 
 export const askBodySchema = z.object({
   question: z.string().trim().min(3, "Ask a longer question.").max(2000, "Keep questions under 2,000 characters."),

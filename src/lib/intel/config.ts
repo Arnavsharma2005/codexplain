@@ -15,6 +15,8 @@ const schema = z.object({
   INTEL_MAX_TOTAL_BYTES: z.coerce.number().int().positive().default(20_000_000),
   INTEL_MAX_EMBEDDED_CHUNKS: z.coerce.number().int().nonnegative().default(1200),
   INTEL_DAILY_INDEX_LIMIT: z.coerce.number().int().positive().default(6),
+  // PR walkthroughs: bigger pull requests are refused rather than half-explained.
+  INTEL_PR_MAX_FILES: z.coerce.number().int().positive().max(3000).default(300),
 });
 
 export type IntelConfig = z.infer<typeof schema>;

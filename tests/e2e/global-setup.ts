@@ -5,6 +5,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 /** Creates a test user and writes a signed-in storage state (no real OAuth needed). */
 export default async function globalSetup() {
   const db = new PrismaClient();
+  await db.prWalkthrough.deleteMany();
   await db.intelIndex.deleteMany();
   await db.$executeRaw`DELETE FROM "IntelEmbedding"`;
   await db.analysisView.deleteMany();

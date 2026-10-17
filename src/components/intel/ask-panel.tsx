@@ -35,7 +35,7 @@ type Props = {
 
 export function AskPanel({ index, repo, graph, signedIn, draft }: Props) {
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [question, setQuestion] = useState("");
+  const [question, setQuestion] = useState(draft?.text ?? "");
   const [remaining, setRemaining] = useState<number | null>(null);
   const abort = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
