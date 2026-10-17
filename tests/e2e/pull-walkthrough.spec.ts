@@ -3,6 +3,26 @@ import { expect, test } from "@playwright/test";
 test.use({ storageState: "tests/e2e/.auth/intel.json" });
 
 test.describe.serial("PR walkthrough", () => {
+  test("is reachable from the repository bar", async ({ page }) => {
+    await page.goto("/r/acme/widgets");
+    const overview = page.getByRole("region", { name: "Go deeper" });
+    await expect(overview.getByRole("link", { name: /Repo intelligence/ })).toHaveAttribute("href", "/r/acme/widgets/intel");
+
+    await page.getByRole("link", { name: "Intelligence", exact: true }).click();
+    await expect(page).toHaveURL(/\/r\/acme\/widgets\/intel$/);
+    await expect(page.getByRole("heading", { name: "Repo intelligence" })).toBeVisible();
+
+    await page.goto("/r/acme/widgets?ref=feature%2Flogin");
+    await expect(page.getByRole("link", { name: "Intelligence", exact: true })).toHaveAttribute("href", "/r/acme/widgets/intel?ref=feature%2Flogin");
+
+    await page.getByRole("link", { name: "Pull requests", exact: true }).click();
+    await expect(page).toHaveURL(/\/pr\?repo=acme%2Fwidgets$/);
+    const open = page.getByRole("region", { name: "Open pull requests in acme/widgets" });
+    await expect(open.getByRole("link")).toHaveText([/#7\s*Add name checks to widgets\s*by ada/, /#9\s*Draft: dark mode\s*draft · by ada/]);
+    await open.getByRole("link", { name: /Add name checks to widgets/ }).click();
+    await expect(page).toHaveURL(/\/r\/acme\/widgets\/pull\/7$/);
+  });
+
   test("opens a pull request link from the header search", async ({ page }) => {
     await page.goto("/pr");
     await expect(page.getByRole("heading", { name: "PR walkthrough" })).toBeVisible();

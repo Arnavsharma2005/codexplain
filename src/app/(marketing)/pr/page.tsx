@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { getGitHubToken } from "@/lib/auth";
+import { GitHubError } from "@/lib/github/client";
+import { ownerSchema, repoNameSchema } from "@/lib/github/validation";
 import { intelEnabled } from "@/lib/intel/config";
+import { listOpenPulls, type PullSummary } from "@/lib/intel/github";
 import { recentWalkthroughs } from "@/lib/intel/pulls/queries";
 import { formatNumber, timeAgo } from "@/lib/utils";
 import { Masthead } from "@/components/masthead";
@@ -19,11 +23,22 @@ const STEPS: [string, string, string][] = [
   ["No. 03", "Impact", "Blast radius shows which code outside the pull request depends on each layer, so you know where to look hardest."],
 ];
 
-export default async function PullEntryPage() {
+/** "owner/name" from ?repo=, when it names a valid repository. */
+function repoParam(v: string | string[] | undefined) {
+  const [owner, name, ...rest] = typeof v === "string" ? v.split("/") : [];
+  if (rest.length || !ownerSchema.safeParse(owner).success || !repoNameSchema.safeParse(name).success) return null;
+  return { owner, name };
+}
+
+export default async function PullEntryPage({ searchParams }: PageProps<"/pr">) {
   // Checked per request, so the flag can change without a rebuild.
   await connection();
   if (!intelEnabled()) notFound();
-  const recent = await recentWalkthroughs(6).catch(() => []);
+  const repo = repoParam((await searchParams).repo);
+  const [recent, open] = await Promise.all([
+    recentWalkthroughs(6).catch(() => []),
+    repo ? openPulls(repo.owner, repo.name) : null,
+  ]);
 
   return (
     <div className="page">
@@ -33,6 +48,38 @@ export default async function PullEntryPage() {
         Anyone can read a saved walkthrough. Signing in with GitHub is only needed to create one, and each is saved so the next
         visitor gets it instantly.
       </p>
+
+      {repo && open ? (
+        <section className="section-ruled mt-12" aria-label={`Open pull requests in ${repo.owner}/${repo.name}`}>
+          <h2 className="section-label marker-orange">
+            Open in <span className="ml-1.5 font-mono normal-case tracking-normal">{repo.owner}/{repo.name}</span>
+          </h2>
+          {"error" in open ? (
+            <p className="text-danger">{open.error}</p>
+          ) : open.pulls.length ? (
+            <ul>
+              {open.pulls.map((p) => (
+                <li key={p.number}>
+                  <Link
+                    href={`/r/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/pull/${p.number}`}
+                    className="wt-try is-num row-hover"
+                  >
+                    <span className="truncate font-mono text-[14px] text-ink-muted">
+                      #{p.number}
+                    </span>
+                    <span className="row-name text-[17px] font-semibold">{p.title}</span>
+                    <span className="meta whitespace-nowrap">
+                      {p.draft ? "draft · " : ""}by {p.author} · {timeAgo(p.updatedAt)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-ink-muted">No open pull requests right now. Paste a link to a closed or merged one above.</p>
+          )}
+        </section>
+      ) : null}
 
       {recent.length ? (
         <section className="section-ruled mt-12" aria-label="Recent walkthroughs">
@@ -87,4 +134,14 @@ export default async function PullEntryPage() {
       </section>
     </div>
   );
+}
+
+async function openPulls(owner: string, name: string): Promise<{ pulls: PullSummary[] } | { error: string }> {
+  try {
+    return { pulls: await listOpenPulls(owner, name, await getGitHubToken()) };
+  } catch (err) {
+    if (err instanceof GitHubError && err.code === "NOT_FOUND") return { error: "That repository was not found, or it is private." };
+    if (err instanceof GitHubError) return { error: err.message };
+    throw err;
+  }
 }

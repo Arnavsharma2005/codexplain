@@ -155,6 +155,7 @@ const pull = (number, extra = {}) => ({
   merged: false,
   draft: false,
   html_url: `https://github.com/acme/widgets/pull/${number}`,
+  updated_at: new Date(Date.now() - 3_600_000).toISOString(),
   head: { sha: sha("widgets-head") },
   base: { sha: sha("widgets-base"), ref: "main", repo: { private: false } },
   additions: 3,
@@ -297,6 +298,7 @@ function handle(req, res) {
     return res.end(tarball(FILES, `acme-widgets-${HEAD.slice(0, 7)}`));
   }
 
+  if (p === "/repos/acme/widgets/pulls") return json(res, 200, [pull(7), pull(9, { title: "Draft: dark mode", draft: true })]);
   if (p === "/repos/acme/widgets/pulls/7") return json(res, 200, pull(7));
   if (p === "/repos/acme/widgets/pulls/7/files") return json(res, 200, url.searchParams.get("page") === "1" ? PULL_FILES : []);
   // Too big to walk through.

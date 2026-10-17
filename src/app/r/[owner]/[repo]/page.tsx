@@ -5,6 +5,7 @@ import { GitHubError, getRefs, getRepo, getTree } from "@/lib/github/client";
 import type { RepoInfo } from "@/lib/github/types";
 import { splitRefAndPath } from "@/lib/github/parse-url";
 import { ownerSchema, pathSchema, refSchema, repoNameSchema } from "@/lib/github/validation";
+import { intelEnabled } from "@/lib/intel/config";
 import { loadCachedAnalyses } from "@/lib/services/analyses";
 import { loadFile } from "@/lib/services/files";
 import { getUsage } from "@/lib/services/quota";
@@ -95,6 +96,7 @@ export default async function RepoPage({ params, searchParams }: Props) {
       signedIn={!!session?.user}
       initialStarred={starred}
       initial={{ tree, file, cached, remaining }}
+      intel={intelEnabled()}
     />
   );
 }

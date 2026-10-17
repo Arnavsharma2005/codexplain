@@ -174,6 +174,20 @@ export async function getPull(owner: string, repo: string, number: number, token
 
 type RawPullFile = { filename: string; previous_filename?: string; status: PullFile["status"]; additions: number; deletions: number; patch?: string };
 
+export type PullSummary = { number: number; title: string; author: string; draft: boolean; updatedAt: string };
+
+/** A public repository's open pull requests, most recently updated first. */
+export async function listOpenPulls(owner: string, repo: string, token: string | null | undefined, take = 10): Promise<PullSummary[]> {
+  const pulls = await getJson<(Omit<RawPull, "head"> & { updated_at: string })[]>(
+    `/repos/${enc(owner, repo)}/pulls?state=open&sort=updated&direction=desc&per_page=${take}`,
+    token,
+    60,
+  );
+  return pulls
+    .filter((p) => !p.base.repo.private)
+    .map((p) => ({ number: p.number, title: p.title, author: p.user?.login ?? "ghost", draft: !!p.draft, updatedAt: p.updated_at }));
+}
+
 /** The changed files with their unified-diff patches, 100 per page, up to `max`. */
 export async function listPullFiles(owner: string, repo: string, number: number, token: string | null | undefined, max: number): Promise<PullFile[]> {
   const out: PullFile[] = [];

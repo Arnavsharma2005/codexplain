@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Code2, ExternalLink, FileText, FolderTree, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
+import { Code2, ExternalLink, FileText, FolderTree, GitPullRequest, Network, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import type { CachedResponse, FileResponse } from "@/lib/api-types";
 import { ApiClientError, apiGet } from "@/lib/api-client";
 import type { RepoInfo, RepoRefs, RepoTree } from "@/lib/github/types";
@@ -35,6 +36,8 @@ type Props = {
     cached: CachedResponse["analyses"] | null;
     remaining: number | null;
   };
+  /** Repo intelligence is switched on: link to its pages. Off, the workspace is unchanged. */
+  intel?: boolean;
 };
 
 type Load<T> = { status: "idle" | "loading" | "ready" | "error"; data: T | null; error: string | null };
@@ -73,7 +76,7 @@ function readFolded(): boolean {
   }
 }
 
-export function Workspace({ repo, refs, initialRef, initialPath, initialDir, signedIn, initialStarred, initial }: Props) {
+export function Workspace({ repo, refs, initialRef, initialPath, initialDir, signedIn, initialStarred, initial, intel = false }: Props) {
   const router = useRouter();
   const gitRef = initialRef;
   const repoQs = useMemo(() => new URLSearchParams({ owner: repo.owner, repo: repo.name, ref: gitRef }), [repo, gitRef]);
@@ -333,6 +336,7 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
   }, [tree.data]);
 
   const facts = [`${formatNumber(repo.stars)} stars`, `${formatNumber(repo.forks)} forks`, repo.language].filter(Boolean).join(" · ");
+  const links = intel ? intelLinks(repo, gitRef) : null;
 
   return (
     <div className="workspace-root flex h-dvh flex-col overflow-hidden">
@@ -370,6 +374,23 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
         <RefSwitcher refs={refs} current={gitRef} defaultBranch={repo.defaultBranch} onSelect={switchRef} />
         <p className="caption hidden truncate md:block">{facts}</p>
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {links ? (
+            <>
+              {/* Phones keep the room for the repository name; the overview links there instead. */}
+              <Button size="sm" asChild className="hidden px-2 sm:inline-flex sm:px-3">
+                <Link href={links.intel}>
+                  <Network aria-hidden />
+                  <span className="sr-only md:not-sr-only">Intelligence</span>
+                </Link>
+              </Button>
+              <Button variant="secondary" size="sm" asChild className="hidden px-2 sm:inline-flex sm:px-3">
+                <Link href={links.pulls}>
+                  <GitPullRequest aria-hidden />
+                  <span className="sr-only md:not-sr-only">Pull requests</span>
+                </Link>
+              </Button>
+            </>
+          ) : null}
           <StarButton owner={repo.owner} repo={repo.name} initial={initialStarred} signedIn={signedIn} />
           <Button variant="secondary" size="sm" asChild className="px-2 sm:px-3">
             <a href={repo.htmlUrl} target="_blank" rel="noopener noreferrer">
@@ -485,7 +506,7 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
               onRevealDir={revealInTree}
             />
           ) : (
-            <RepoOverview repo={repo} suggested={suggested} onOpen={selectFile} />
+            <RepoOverview repo={repo} suggested={suggested} onOpen={selectFile} links={links} />
           )}
         </section>
 
@@ -522,7 +543,27 @@ export function Workspace({ repo, refs, initialRef, initialPath, initialDir, sig
   );
 }
 
-function RepoOverview({ repo, suggested, onOpen }: { repo: RepoInfo; suggested: string[]; onOpen: (p: string) => void }) {
+function intelLinks(repo: RepoInfo, gitRef: string) {
+  const base = `/r/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/intel`;
+  return {
+    intel: gitRef === repo.defaultBranch ? base : `${base}?${new URLSearchParams({ ref: gitRef })}`,
+    pulls: `/pr?${new URLSearchParams({ repo: repo.fullName })}`,
+  };
+}
+
+type IntelLinks = ReturnType<typeof intelLinks>;
+
+function RepoOverview({
+  repo,
+  suggested,
+  onOpen,
+  links,
+}: {
+  repo: RepoInfo;
+  suggested: string[];
+  onOpen: (p: string) => void;
+  links: IntelLinks | null;
+}) {
   return (
     <div className="h-full overflow-auto">
       <article className="max-w-[calc(68ch+80px)] px-4 pt-5 pb-12 lg:px-10 lg:pt-8">
@@ -563,6 +604,28 @@ function RepoOverview({ repo, suggested, onOpen }: { repo: RepoInfo; suggested: 
             Pick any file in the tree. The analysis opens here, the code on the right.
           </p>
         </section>
+
+        {links ? (
+          <section className="section-ruled mt-8" aria-label="Go deeper">
+            <h2 className="section-label marker-teal">Go deeper</h2>
+            <ul className="ruled-list">
+              {(
+                [
+                  [links.intel, Network, "Repo intelligence", "Ask questions with cited answers, see the import map and what a change would break."],
+                  [links.pulls, GitPullRequest, "Pull request walkthroughs", "Open pull requests, ordered foundations first, with what each layer could break."],
+                ] as const
+              ).map(([href, Icon, title, blurb]) => (
+                <li key={title}>
+                  <Link href={href} className="row-hover grid grid-cols-[28px_minmax(0,1fr)] items-baseline gap-x-2 py-3">
+                    <Icon aria-hidden className="size-4 translate-y-0.5 text-label" />
+                    <span className="row-name text-[16px] font-semibold">{title}</span>
+                    <span className="col-start-2 text-ink-muted">{blurb}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </article>
     </div>
   );
