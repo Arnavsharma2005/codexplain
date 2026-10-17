@@ -1,30 +1,34 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector]
 }
 
 // ---------- NextAuth ----------
 
 model User {
-  id            String         @id @default(cuid())
+  id            String          @id @default(cuid())
   name          String?
-  email         String?        @unique
+  email         String?         @unique
   emailVerified DateTime?
   image         String?
   githubLogin   String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   accounts      Account[]
   sessions      Session[]
   repoVisits    RepoVisit[]
   analyses      Analysis[]
   analysisViews AnalysisView[]
   usage         UsageDay[]
+  intelIndexes  IntelIndex[]
+  walkthroughs  PrWalkthrough[]
 }
 
 // OAuth tokens are intentionally NOT persisted here (see src/lib/auth.ts).
@@ -66,17 +70,19 @@ model VerificationToken {
 // ---------- Codexplain ----------
 
 model Repository {
-  id            String      @id @default(cuid())
+  id            String          @id @default(cuid())
   owner         String
   name          String
   description   String?
   defaultBranch String
-  stars         Int         @default(0)
+  stars         Int             @default(0)
   language      String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   visits        RepoVisit[]
   analyses      Analysis[]
+  intelIndexes  IntelIndex[]
+  walkthroughs  PrWalkthrough[]
 
   @@unique([owner, name])
 }
@@ -148,4 +154,148 @@ model UsageDay {
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, day])
+}
+
+// ---------- Repo intelligence (src/lib/intel) ----------
+// A parsed snapshot of one repository at one commit: files, symbols, the
+// import graph and search chunks. Chunk embeddings live in IntelEmbedding,
+// keyed by content hash, so unchanged code is never embedded twice.
+
+enum IntelStatus {
+  INDEXING
+  READY
+  FAILED
+}
+
+model IntelIndex {
+  id            String        @id @default(cuid())
+  repositoryId  String
+  createdById   String?
+  ref           String
+  commitSha     String
+  status        IntelStatus   @default(INDEXING)
+  error         String?
+  fileCount     Int           @default(0)
+  symbolCount   Int           @default(0)
+  edgeCount     Int           @default(0)
+  chunkCount    Int           @default(0)
+  embeddedCount Int           @default(0)
+  skippedCount  Int           @default(0)
+  bytes         Int           @default(0)
+  durationMs    Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  repository    Repository    @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  createdBy     User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  files         IntelFile[]
+  symbols       IntelSymbol[]
+  edges         IntelEdge[]
+  chunks        IntelChunk[]
+
+  @@unique([repositoryId, commitSha])
+  @@index([createdById, createdAt])
+}
+
+model IntelFile {
+  id       String        @id @default(cuid())
+  indexId  String
+  path     String
+  language String?
+  bytes    Int
+  lines    Int
+  index    IntelIndex    @relation(fields: [indexId], references: [id], onDelete: Cascade)
+  symbols  IntelSymbol[]
+  chunks   IntelChunk[]
+  outEdges IntelEdge[]   @relation("from")
+  inEdges  IntelEdge[]   @relation("to")
+
+  @@unique([indexId, path])
+}
+
+model IntelSymbol {
+  id        String     @id @default(cuid())
+  indexId   String
+  fileId    String
+  name      String
+  kind      String
+  startLine Int
+  endLine   Int
+  exported  Boolean    @default(false)
+  index     IntelIndex @relation(fields: [indexId], references: [id], onDelete: Cascade)
+  file      IntelFile  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([indexId, name])
+}
+
+model IntelEdge {
+  indexId    String
+  fromFileId String
+  toFileId   String
+  index      IntelIndex @relation(fields: [indexId], references: [id], onDelete: Cascade)
+  from       IntelFile  @relation("from", fields: [fromFileId], references: [id], onDelete: Cascade)
+  to         IntelFile  @relation("to", fields: [toFileId], references: [id], onDelete: Cascade)
+
+  @@id([fromFileId, toFileId])
+  @@index([indexId])
+}
+
+model IntelChunk {
+  id        String                   @id @default(cuid())
+  indexId   String
+  fileId    String
+  startLine Int
+  endLine   Int
+  symbols   String[]
+  text      String                   @db.Text
+  hash      String
+  // to_tsvector('simple', path + split identifiers + text), written by src/lib/intel/store.ts
+  tsv       Unsupported("tsvector")?
+  index     IntelIndex               @relation(fields: [indexId], references: [id], onDelete: Cascade)
+  file      IntelFile                @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([indexId])
+  @@index([fileId, startLine])
+  @@index([hash])
+  @@index([tsv], type: Gin)
+}
+
+model IntelEmbedding {
+  hash      String
+  model     String
+  vector    Unsupported("vector(768)")
+  createdAt DateTime                   @default(now())
+
+  @@id([hash, model])
+}
+
+// A pull request read as ordered layers with AI summaries (repo intelligence,
+// behind INTEL_ENABLED). One row per PR head commit; `data` holds the files,
+// trimmed diffs and layers (see src/lib/intel/pulls/types.ts).
+model PrWalkthrough {
+  id           String      @id @default(cuid())
+  repositoryId String
+  createdById  String?
+  number       Int
+  headSha      String
+  baseSha      String
+  title        String
+  author       String
+  state        String
+  additions    Int         @default(0)
+  deletions    Int         @default(0)
+  changedFiles Int         @default(0)
+  status       IntelStatus @default(INDEXING)
+  error        String?
+  model        String?
+  data         Json?
+  durationMs   Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  createdBy    User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([repositoryId, number, headSha])
+  @@index([repositoryId, number, createdAt])
+  @@index([status, createdAt])
+  @@index([createdById, createdAt])
 }

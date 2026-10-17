@@ -27,6 +27,15 @@ describe("parseGitHubUrl", () => {
     });
   });
 
+  it.each([
+    ["https://github.com/vercel/next.js/pull/123", 123],
+    ["github.com/vercel/next.js/pull/123/files", 123],
+    ["https://github.com/vercel/next.js/pull/0", undefined],
+    ["https://github.com/vercel/next.js/pull/abc", undefined],
+  ])("reads the pull request number from %s", (input, pull) => {
+    expect(parseGitHubUrl(input)).toEqual({ owner: "vercel", repo: "next.js", ...(pull ? { pull } : {}) });
+  });
+
   it("captures tree URLs", () => {
     expect(parseGitHubUrl("github.com/o/r/tree/feature/x/src")).toMatchObject({ kind: "tree", refAndPath: ["feature", "x", "src"] });
   });

@@ -14,6 +14,8 @@ export type ParsedGitHubUrl = {
   line?: number;
   /** Last line when the anchor was a range (#L42-L50). */
   lineEnd?: number;
+  /** Pull request number from a /pull/123 URL (also /pull/123/files). */
+  pull?: number;
 };
 
 const GITHUB_HOSTS = new Set(["github.com", "www.github.com"]);
@@ -66,6 +68,7 @@ export function parseGitHubUrl(input: string): ParsedGitHubUrl | null {
     result.kind = kind;
     result.refAndPath = rest;
   }
+  if (kind === "pull" && /^\d{1,9}$/.test(rest[0] ?? "") && Number(rest[0]) > 0) result.pull = Number(rest[0]);
 
   const lineMatch = url.hash.match(/^#L(\d+)(?:-L?(\d+))?/);
   if (lineMatch) {

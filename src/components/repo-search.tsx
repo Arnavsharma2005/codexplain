@@ -6,11 +6,12 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { parseGitHubUrl } from "@/lib/github/parse-url";
 import { cn } from "@/lib/utils";
 
-/** Turns any GitHub URL (or owner/repo) into a workspace URL. */
+/** Turns any GitHub URL (or owner/repo) into a workspace URL; pull request links open their walkthrough. */
 export function workspaceHref(input: string): string | null {
   const parsed = parseGitHubUrl(input);
   if (!parsed) return null;
   const base = `/r/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`;
+  if (parsed.pull) return `${base}/pull/${parsed.pull}`;
   const params = new URLSearchParams();
   if (parsed.refAndPath?.length) params.set("at", parsed.refAndPath.join("/"));
   if (parsed.kind) params.set("kind", parsed.kind);
